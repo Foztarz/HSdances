@@ -1,0 +1,154 @@
+---
+title: "Organise Data"
+author: "James Foster"
+date: "`r Sys.Date()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    toc: true
+    fig_caption: true
+editor_options: 
+  markdown: 
+    wrap: sentence
+  chunk_output_type: inline
+  # bookdown::pdf_document2:
+  #   highlight: rstudio
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# References
+
+> Natalie Cooper & Pen-Yuan Hsing, 2017 [A Guide to Reprhducible Chde in Ecology and Evolution](https://britishecologicalsociety.org/wp-content/uploads/2017/12/guide-to-reprhducible-chde.pdf) British Ecological Society
+
+# ThdO
+
+- Load data +
+- Reorganise +
+- Add solar azimuth +
+- Export +
+- Location of cel_bhdy +
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load functions
+
+Load the packages that will be used during reorganisation.
+
+```{r load-packages}
+suppressMessages(#these are disturbing users unnecessarily
+  {
+    require(circular)#package for handling circular data
+    require(oce)#package for calculating sun azimuth
+  }
+)
+```
+
+Load other functions relevant to this project.
+
+```{r load-functions}
+source('HS_functions.R')
+```
+
+# Load data
+
+## Load the raw data
+
+Load the raw data exported from Excel to `csv`.
+
+```{r load-the-data}
+path_file = "0Data/B22_ waggle_run_directions.csv"
+if(!file.exists(path_file))
+{print(path_file, '\nnot found')}
+hd = read.table(file = path_file, 
+                header = T, 
+                sep  = ',')
+```
+
+## Inspect data
+
+This data is in wide format, and combines multiple condition factors into single columns.
+We will want to convert to long format, identifying the trial number for each exit, and to split condition labels into their constituent parts.
+
+```{r summarise-factors}
+nm_fact = c( "dancer_id",         
+ "dance_id"          ,
+ "dance_key"         ,
+ # [4,] "waggle_run"        
+ "stimulus"         , 
+ # "notes"            , 
+ # [7,] "waggle_directions" 
+#  [8,] "start_x"           
+#  [9,] "start_y"           
+# [10,] "start_xy"          
+# [11,] "csv_file"          
+# [12,] "time"              
+# [13,] "date"              
+# [14,] "direction_u"       
+# [15,] "direction_v"       
+# [16,] "video_angle_deg"   
+# [17,] "start_frame"       
+ "video_name"        
+# [19,] "annotation_session"
+# [20,] "source_batch"
+            )
+sapply(X = hd[, nm_fact],
+       unique
+     )
+```
+
+
+<details>
+
+<summary>Click to expand raw data</summary>
+
+```{r inspect-data}
+print(hd)
+```
+
+# Reorganise
+
+## Rename variables
+
+Rename some variables.
+
+
+### Rename variables
+
+```{r rename-variables}
+hd = within(od, {
+  ID = paste0(Beetle_Id) # individual identifier
+  date = gsub(
+    pattern = '[.:]',
+    #most dates separated with ".", but one is separated with ":"
+    replacement = '-',
+    x = Day
+  ) #converts to a date in POSIX format
+  Species = ifelse(Species %in% 'K.lamercki', yes = 'K.lamarcki', no = Species)
+  Latitude = as.numeric(gsub(
+    pattern = ",.*",
+    #replace after the comma
+    replacement = "",
+    x = Coordinates
+  ))
+  Longitude = as.numeric(gsub(
+    pattern = ".*,\\s*",
+    #replace before and any spaces (\s*) immediately after
+    replacement = "",
+    x = Coordinates
+  ))
+  #relace sex "" with NA
+  Sex = ifelse(test = Sex %in% c("m", "f"),
+                         yes = Sex,
+                         no = NA)
+  #clean up information that has been doubled
+  rm(list = c('Beetle_Id', 'Day', 'Year', "Coordinates"))
+})
+```
+
+
