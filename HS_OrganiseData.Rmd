@@ -24,7 +24,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 > Natalie Cooper & Pen-Yuan Hsing, 2017 [A Guide to Reprhducible Chde in Ecology and Evolution](https://britishecologicalsociety.org/wp-content/uploads/2017/12/guide-to-reprhducible-chde.pdf) British Ecological Society
 
-# ThdO
+# ToDo
 
 - Load data +
 - Reorganise +
@@ -72,6 +72,11 @@ hd = read.table(file = path_file,
 
 ## Inspect data
 
+Exported CSVs sometimes end up with empty rows at the end.
+
+```{r check-last-row}
+print(hd[dim(hd)[1],])
+```
 
 <details>
 
@@ -91,10 +96,15 @@ Rename some variables.
 ```{r rename-variables}
 hd = within(hd, {
   ID = paste0(dancer_id) # individual identifier
-  ID_d = paste0(dance_id) # dance identifier
-  date = source_batch # this is already in POSIX format
+  ID_d = paste0(dance_id, "_", 
+                time, "_",
+                source_batch) # dance identifier
+  day = source_batch # this is already in POSIX format
+  video_file = file.path(basename(dirname(video_name)), #just the folder
+                         basename(video_name)) # and file name
   #clean up information that has been doubled
   rm(list = c('dancer_id', 'dance_id', 'dance_key', 'source_batch', "date",
+              "video_name", #should be identifiable from video_file
               "waggle_directions",#split into direction_u  and direction_v
               "start_xy"#split into "start_x" and "start_y" 
               ))
@@ -120,7 +130,8 @@ nm_fact = c( "ID",
 # [15,] "direction_v"       
 # [16,] "video_angle_deg"   
 # [17,] "start_frame"       
- "video_name"        
+ # "video_name"        
+ "video_file" # avoid printing full path        
 # [19,] "annotation_session"
 # [20,] "source_batch"
             )
@@ -190,28 +201,280 @@ hd = within(hd,
 with(hd, unique(stimulus))
 ```
 
+## Check variable structure
 
+Each dance should have only one time code, one stimulus and one bee.
+
+```{r check-structure}
+all(
+#individuals per dance
+summary(
+  sapply(X = unique(hd$ID_d),
+               FUN = function(id){
+                 with(subset(hd, ID_d %in% id),
+                          {length(unique(ID))} )
+               }
+  )
+) == 1,
+#times per dance
+summary(
+  sapply(X = unique(hd$ID_d),
+               FUN = function(id){
+                 with(subset(hd, ID_d %in% id),
+                          {length(unique(time))} )
+               }
+  )
+) == 1,
+#days per dance
+summary(
+  sapply(X = unique(hd$ID_d),
+               FUN = function(id){
+                 with(subset(hd, ID_d %in% id),
+                          {length(unique(time))} )
+               }
+  )
+) == 1,
+#stimuli per dance
+summary(
+  sapply(X = unique(hd$ID_d),
+               FUN = function(id){
+                 with(subset(hd, ID_d %in% id),
+                          {length(unique(stimulus))} )
+               }
+  )
+) == 1
+)
+
+#how many waggle runs per dance?
+summary(
+  sapply(X = unique(hd$ID_d),
+               FUN = function(id){
+                 with(subset(hd, ID_d %in% id),
+                          {max(waggle_run)} )
+               }
+  )
+)
+```
+
+## Add sun location
+
+```{r add-time-code}
+
+hd = within(hd,
+            {
+              time_code = mapply(FUN = paste, 
+                                 day,
+                                 time)#time in YYYY-MM-DD HH:MM:SS
+              sast_time =  as.POSIXct(time_code, 
+                                      tz = "Africa/Johannesburg", 
+                                      format = "%Y-%m-%d %H:%M:%OS")#South African Standard time
+              utc_time =  as.POSIXct(sast_time, tz = "UTC")#UTC time
+              rm("time_code")#now duplicated
+            }
+)
+```
+
+```{r add-sun}
+# Hive position
+# 25° 34' 19" S, 31° 10' 53" E
+#-25.571944, 31.181389
+
+
+#add sun azimuth
+hd = within(hd, 
+            {
+            sun_az = mapply(
+                   FUN = GetSaz,
+                   tm = utc_time,
+                   lon = 31.181389,
+                   lat = -25.571944)
+            }
+            )
+
+#add sun azimuth
+hd = within(hd, 
+            {
+            sun_el = mapply(
+                   FUN = GetSel,
+                   tm = utc_time,
+                   lon = 31.181389,
+                   lat = -25.571944)
+            }
+            )
+
+print(with(hd, sapply(X = list(sun_az, sun_el),FUN =  summary)),
+      digits = 2)
+```
+```{r add-feeder-angle}
+# Hive position
+# 25° 34' 19" S, 31° 10' 53" E
+#-25.571944, 31.181389
+
+# Feeder position
+# 25° 34' 14" S, 31° 10' 59" E
+#-25.570556, 31.183056
+
+# Define coordinates (lon, lat)
+hive = c(longitude = 31.181389, 
+         latitude = -25.571944)
+feeder =  c(longitude = 31.183056, 
+            latitude = -25.570556)
+
+# Calculate bearing from hive to feeder
+feeder_bearing = bearing(hive, feeder)
+print(feeder_bearing, digits = 3)
+
+#add sun azimuth
+hd = within(hd, 
+            {
+            feeder_az = Mod360.180(sun_az - feeder_bearing)
+            }
+            )
+print(with(hd, summary(feeder_az)), digits = 3)
+```
 
 ## Format angles
+
+```{r investigate-angles}
+#check angle format
+
+est_err = with(hd, {
+    (atan2(y = direction_v, x = direction_u) + pi/2) - rad(video_angle_deg) 
+  })
+abs_est_err = mod_circular(abs(est_err))
+#these can be out by as much as 1/100 of a degree, except two which are out by 90°
+hist(x = deg(abs_est_err), 
+     breaks = 1e2,
+     xlab = 'absolute error in video angle')
+cbind(with(hd[abs_est_err > 1,],
+     as.character(unique(ID_d))),
+          unique(deg(abs_est_err[abs_est_err > 1])) )
+with(hd[abs_est_err > 1,],
+           cbind(
+     as.character(unique(ID_d)),
+          unique(paste(direction_v, direction_u)), 
+     unique(as.character(video_file))
+     )
+)
+#these are zero length vectors
+#set them to NA
+hd = within(hd, 
+            {
+              direction_v[direction_v ==0 &
+                          direction_u ==0
+                          ] = NA
+              direction_u[direction_v ==0 &
+                          direction_u ==0
+                          ] = NA
+              video_angle_deg[direction_v ==0 &
+                          direction_u ==0
+                          ] = NA
+            }
+            )
+```
 
 ```{r format-angles}
 #assign angles to numeric
 
-#check angle format
-summary(
-  with(hd, {
-    atan2(y = direction_v, x = direction_u) - rad(video_angle_deg) + pi / 2
-  })
-)
-#video_angle_deg is the dance angle rel to vertical, except for the occasional rounding error
+#video_angle_deg is the dance angle clockwise rel to vertical, except  error
 hd = within(hd, 
             {
+              # bearing = deg(atan2(y = direction_v, x = direction_u) + pi/2) %% 360
+              bearing = video_angle_deg
               signed_angle = Mod360.180(video_angle_deg)  # bearing between -180 and 180
               angle = circular(rad(signed_angle),# bearing between -pi and pi
                                rotation = 'clock') # circular format suppresses later warnings
+              rm('video_angle_deg')
             }
             )
-with(hd, summary(angle))
+with(hd, sapply(list(bearing, signed_angle, angle), FUN = summary))
 ```
+# Inspect dances
 
+### Plot an example dance
+
+For example we can look at the dances for Blue-22 recorded on 2025-01-28 at 
+07:57:05, 08:10:00, 08:29:00, 08:34:00 & 10:44:09—each of which is the first for 
+one of the stimulus conditions.
+Sun azimuth (possibly incorrect) is shown as an orange line.
+
+```{r example-subset}
+subs_20250128 = subset(hd, day %in% "2025-01-28")
+#find first dance for each condition on 2025.01.28
+example_lst = list()
+for(stim in unique(hd$stimulus))
+{
+example_lst[[stim]] = with(subset(subs_20250128, stimulus %in% stim),
+                           unique(ID_d)[1])
+}
+#inspect
+print(t(t(unlist(example_lst))))
+
+example_subs = subset(x = hd,
+                      ID_d %in% paste(unlist(example_lst))
+                      )
+
+par(mfrow = c(2,2), mar = c(0,0,0,0))
+with(subset(example_subs,
+            subset = stimulus %in% 'vertical'),
+     {
+  PCfun(angles = bearing,
+        col = 'darkgreen',
+        shrink = 1.5,
+        title = paste(unique(time), unique(stimulus)))
+  lines(
+    x = c(0, sin(-rad(feeder_az))),
+    y = c(0, cos(-rad(feeder_az))),
+    col = adjustcolor('orange', alpha.f = 0.5),
+    lwd = 2
+  )
+     }
+)
+
+with(subset(example_subs,
+            subset = stimulus %in% 'horizontal'),
+     {
+PCfun(angles = bearing,
+      col = 'darkred',
+      shrink = 1.5,
+      title = paste(unique(time), unique(stimulus)))
+         lines(
+    x = c(0, sin(-rad(feeder_az))),
+    y = c(0, cos(-rad(feeder_az))),
+    col = adjustcolor('orange', alpha.f = 0.5),
+    lwd = 2
+  )
+     }
+)
+with(subset(example_subs,
+            subset = stimulus %in% 'antisolar'),
+     {
+PCfun(angles = bearing,
+      col = 'cyan4',
+      shrink = 1.5,
+      title = paste(unique(time), unique(stimulus)))
+         lines(
+    x = c(0, sin(-rad(feeder_az))),
+    y = c(0, cos(-rad(feeder_az))),
+    col = adjustcolor('orange', alpha.f = 0.5),
+    lwd = 2
+  )
+     }
+)
+with(subset(example_subs,
+            subset = stimulus %in% 'solar'),
+     {
+PCfun(angles = bearing,
+      col = 'blue4',
+      shrink = 1.5,
+      title = paste(unique(time), unique(stimulus)))
+         lines(
+    x = c(0, sin(-rad(feeder_az+180))),
+    y = c(0, cos(-rad(feeder_az+180))),
+    col = adjustcolor('orange', alpha.f = 0.5),
+    lwd = 2
+  )
+     }
+)
+```
 
