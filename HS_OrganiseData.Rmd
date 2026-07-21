@@ -308,7 +308,7 @@ feeder =  c(longitude = 31.183056,
 feeder_bearing = bearing(hive, feeder)
 print(feeder_bearing, digits = 3)
 
-#add sun azimuth
+#add feeder azimuth
 hd = within(hd, 
             {
             feeder_az = Mod360.180(sun_az - feeder_bearing)
