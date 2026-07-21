@@ -72,13 +72,40 @@ hd = read.table(file = path_file,
 
 ## Inspect data
 
-This data is in wide format, and combines multiple condition factors into single columns.
-We will want to convert to long format, identifying the trial number for each exit, and to split condition labels into their constituent parts.
+
+<details>
+
+<summary>Click to expand raw data</summary>
+
+```{r inspect-data}
+print(hd)
+```
+
+# Reorganise
+
+## Rename variables
+
+Rename some variables.
+
+
+```{r rename-variables}
+hd = within(hd, {
+  ID = paste0(dancer_id) # individual identifier
+  ID_d = paste0(dance_id) # dance identifier
+  date = source_batch # this is already in POSIX format
+  #clean up information that has been doubled
+  rm(list = c('dancer_id', 'dance_id', 'dance_key', 'source_batch', "date",
+              "waggle_directions",#split into direction_u  and direction_v
+              "start_xy"#split into "start_x" and "start_y" 
+              ))
+})
+```
+
 
 ```{r summarise-factors}
-nm_fact = c( "dancer_id",         
- "dance_id"          ,
- "dance_key"         ,
+nm_fact = c( "ID",         
+ "ID_d"          ,
+ # "dance_key"         ,
  # [4,] "waggle_run"        
  "stimulus"         , 
  # "notes"            , 
@@ -102,53 +129,89 @@ sapply(X = hd[, nm_fact],
      )
 ```
 
+## Reformat variables
 
-<details>
+Reformat variables to factor and numeric. Everything else remains character format by default.
 
-<summary>Click to expand raw data</summary>
 
-```{r inspect-data}
-print(hd)
+```{r reformat-variables}
+nm_num = c(
+ #  "dancer_id",         
+ # "dance_id"          ,
+ # "dance_key"         ,
+ "waggle_run",        
+ # "stimulus"         , 
+ # "notes"            , 
+ # [7,] "waggle_directions" 
+"start_x"    ,       
+"start_y"     ,      
+# "start_xy"          
+# [11,] "csv_file"          
+# [12,] "time"              
+# [13,] "date"              
+"direction_u",
+"direction_v",
+"video_angle_deg",
+"start_frame",
+ # "video_name"        
+"annotation_session"
+# [20,] "source_batch"
+)
+#format factors
+for(nm in nm_fact)
+{
+hd[, nm] = as.factor(hd[, nm])
+}
+
+#format numeric
+for(nm in nm_num)
+{
+hd[, nm] = as.numeric(hd[, nm])
+}
+
+summary(hd)
 ```
 
-# Reorganise
+There appears to have been an autofill error in stimulus labelling. 
+Rename all unexpected stimuli to `deg_10`, 10° above horizontal.
+```{r reformat-stimulus}
+hd = within(hd,
+            {
+              stimulus = sapply(as.character(stimulus),
+                                switch,
+                                vertical = "vertical",
+                                horizontal = "horizontal",
+                                antisolar = "antisolar",
+                                solar = "solar",
+                                deg_10 = "deg_10",
+                                "deg_10")#otherwise always deg_10
+            }
+            )
+with(hd, unique(stimulus))
+```
 
-## Rename variables
-
-Rename some variables.
 
 
-### Rename variables
+## Format angles
 
-```{r rename-variables}
-hd = within(od, {
-  ID = paste0(Beetle_Id) # individual identifier
-  date = gsub(
-    pattern = '[.:]',
-    #most dates separated with ".", but one is separated with ":"
-    replacement = '-',
-    x = Day
-  ) #converts to a date in POSIX format
-  Species = ifelse(Species %in% 'K.lamercki', yes = 'K.lamarcki', no = Species)
-  Latitude = as.numeric(gsub(
-    pattern = ",.*",
-    #replace after the comma
-    replacement = "",
-    x = Coordinates
-  ))
-  Longitude = as.numeric(gsub(
-    pattern = ".*,\\s*",
-    #replace before and any spaces (\s*) immediately after
-    replacement = "",
-    x = Coordinates
-  ))
-  #relace sex "" with NA
-  Sex = ifelse(test = Sex %in% c("m", "f"),
-                         yes = Sex,
-                         no = NA)
-  #clean up information that has been doubled
-  rm(list = c('Beetle_Id', 'Day', 'Year', "Coordinates"))
-})
+```{r format-angles}
+#assign angles to numeric
+
+#check angle format
+summary(
+  with(hd, {
+    atan2(y = direction_v, x = direction_u) - rad(video_angle_deg) + pi / 2
+  })
+)
+#video_angle_deg is the dance angle rel to vertical, except for the occasional rounding error
+hd = within(hd, 
+            {
+              signed_angle = Mod360.180(video_angle_deg)  # bearing between -180 and 180
+              angle = circular(rad(signed_angle),# bearing between -pi and pi
+                               rotation = 'clock') # circular format suppresses later warnings
+            }
+            )
+with(hd, summary(angle))
 ```
 
 
