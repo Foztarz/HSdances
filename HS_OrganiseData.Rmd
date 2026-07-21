@@ -16,40 +16,24 @@ editor_options:
   #   highlight: rstudio
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
 # References
 
 > Natalie Cooper & Pen-Yuan Hsing, 2017 [A Guide to Reprhducible Chde in Ecology and Evolution](https://britishecologicalsociety.org/wp-content/uploads/2017/12/guide-to-reprhducible-chde.pdf) British Ecological Society
 
-# ToDo
+# TODO
 
 - Load data +
 - Reorganise +
 - Add solar azimuth +
-- Export +
-- Location of cel_bhdy +
+- Export
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Load functions
+# Load functions and packages
 
-Load the packages that will be used during reorganisation.
-
-```{r load-packages}
-suppressMessages(#these are disturbing users unnecessarily
-  {
-    require(circular)#package for handling circular data
-    require(oce)#package for calculating sun azimuth
-  }
-)
-```
-
-Load other functions relevant to this project.
+Load the packages and other functions that will be used during reorganisation.
 
 ```{r load-functions}
 source('HS_functions.R')
