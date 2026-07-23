@@ -26,6 +26,7 @@ editor_options:
 - Reorganise +
 - Add solar azimuth +
 - Export
+- Incorporate calibration
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -46,7 +47,7 @@ source('HS_functions.R')
 Load the raw data exported from Excel to `csv`.
 
 ```{r load-the-data}
-path_file = "0Data/B22_ waggle_run_directions.csv"
+path_file = "0Data/B22_dances_with_calibrations.csv"
 if(!file.exists(path_file))
 {print(path_file, '\nnot found')}
 hd = read.table(file = path_file, 
@@ -56,7 +57,8 @@ hd = read.table(file = path_file,
 
 ## Inspect data
 
-Exported CSVs sometimes end up with empty rows at the end.
+Exported CSVs sometimes end up with empty rows at the end. 
+Check that the last row contains data.
 
 ```{r check-last-row}
 print(hd[dim(hd)[1],])
@@ -72,9 +74,14 @@ print(hd)
 
 # Reorganise
 
+```{r check-column-names}
+names(hd)
+```
 ## Rename variables
 
-Rename some variables.
+Rename some variables with shorter or easier to recognise names. 
+Video names currently include the full path for the user that annotated them 
+these can be simplified to just file name and folder (date recorded).
 
 
 ```{r rename-variables}
@@ -95,6 +102,9 @@ hd = within(hd, {
 })
 ```
 
+## Identify factor levels
+Some of the character variables could be treated as factors. 
+Inspect the different labels to each to check these are informative.
 
 ```{r summarise-factors}
 nm_fact = c( "ID",         
@@ -461,4 +471,14 @@ PCfun(angles = bearing,
      }
 )
 ```
+# Write out reorganised data
 
+```{r write-data}
+# Write out table
+
+write.table(x = hd,
+            file = file.path(dirname(path_file), "hs_dance_reorg.csv"),
+            sep = ',',
+            row.names = FALSE
+            )
+```
