@@ -25,7 +25,8 @@ editor_options:
 - Load data +
 - Reorganise +
 - Add solar azimuth +
-- Export
+- Export +
+- Adjust times for dome videos
 - Incorporate calibration
 
 ```{r setup, include=FALSE}
@@ -252,6 +253,8 @@ summary(
 
 ## Add sun location
 
+### Set up times
+
 ```{r add-time-code}
 
 hd = within(hd,
@@ -267,6 +270,54 @@ hd = within(hd,
             }
 )
 ```
+
+
+### Adjust for laptop clock (check this)
+
+Videos recorded on the laptop have time stamps in CET not SAST, so they are one hour behind (South African Summer time is `UCT + 2`, Central European Winter is `UTC + 1`). 
+Adjust them by adding one hour before calculating sun position.
+```{r adjust-CET-SAST}
+hd = within(hd,
+            {
+              sast_time = as.POSIXct(
+                mapply(FUN = switch,
+                                 EXPR = stimulus,
+                                 vertical = sast_time,
+                                 horizontal = sast_time,
+                                 deg_10 = sast_time,  
+                                 antisolar = sast_time + 60*60, #60 min x 60 seconds
+                                 solar = sast_time + 60*60,
+                                 sast_time
+                                 ),
+                tz = "Africa/Johannesburg", 
+                format = "%Y-%m-%d %H:%M:%OS")#South African Standard time
+              #recalculate UTC time
+              utc_time =  as.POSIXct(sast_time, tz = "UTC")#UTC time
+            }
+            )
+
+```
+
+
+### Inspect experiment times
+
+```{r inspect-times}
+with(hd,
+     hist(x = GetToD(sast_time,
+                     tz = 'UTC'),
+          breaks = 12*60/15 +1,
+          xlim = c(7, 19)*60*60,
+          freq = TRUE,
+          main = "Recorded dances by time",
+          xlab = "Local time",
+          axes = FALSE),
+     )
+axis(side = 1,
+     at = 7:19*60*60,
+     labels = 7:19)
+axis(side = 2)
+```
+### Estimate sun location
 
 ```{r add-sun}
 # Hive position
@@ -325,6 +376,50 @@ hd = within(hd,
             }
             )
 print(with(hd, summary(feeder_az)), digits = 3)
+```
+
+### Plot sanity checks
+
+Plot these to get an idea of how they match up.
+
+```{r sanity-plot}
+
+par(mfrow = c(1,2))
+with(subset(hd, stimulus %in% c("vertical", "horizontal", "deg10")),
+     {
+     plot(x = GetToD(sast_time,
+                     tz = 'UTC'),
+          y = sun_el,
+          xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
+          ylim = c(-1,1)*c(5,90),
+          xlab = 'UTC',
+          ylab = 'Sun Elevation',
+          main = 'Camcorder Videos',
+           col = 'orange3')
+     abline(h = 0:6*c(15),
+            lty = 2) #limits
+     abline(v =  12*60*60, #as.numeric(as.POSIXct("1970-01-01 12:00:00 UTC"))
+            lty = 3)
+     }
+     )
+with(subset(hd, stimulus %in% c("solar", "antisolar")),
+     {
+     plot(x = GetToD(sast_time,
+                     tz = 'UTC'),
+          y = sun_el,
+          xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
+          ylim = c(-1,1)*c(5,90),
+          xlab = 'UTC',
+          ylab = 'Sun Elevation',
+          main = 'USB Camera Videos',
+           col = 'cyan4')
+     abline(h = 0:6*c(15),
+            lty = 2) #limits
+     abline(v = 12*60*60, #as.numeric(as.POSIXct("1970-01-01 12:00:00 UTC"))
+            lty = 3)
+     }
+     )
+
 ```
 
 ## Format angles
