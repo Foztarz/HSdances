@@ -18,7 +18,7 @@ editor_options:
 
 # References
 
-> Natalie Cooper & Pen-Yuan Hsing, 2017 [A Guide to Reprhducible Chde in Ecology and Evolution](https://britishecologicalsociety.org/wp-content/uploads/2017/12/guide-to-reprhducible-chde.pdf) British Ecological Society
+> Natalie Cooper & Pen-Yuan Hsing, 2017 [A Guide to Reproducible Code in Ecology and Evolution](https://britishecologicalsociety.org/wp-content/uploads/2017/12/guide-to-reprhducible-chde.pdf) British Ecological Society
 
 # TODO
 
@@ -395,7 +395,16 @@ with(subset(hd, stimulus %in% c("vertical", "horizontal", "deg10")),
           xlab = 'UTC',
           ylab = 'Sun Elevation',
           main = 'Camcorder Videos',
-           col = 'orange3')
+          pch = 21,
+          col = 'gray50',
+           bg = adjustcolor(sapply(X = stimulus,
+                        FUN = switch,
+                        vertical = 'darkred',
+                        horizontal = 'darkgreen',
+                        deg10 = 'seagreen',
+                        'seagreen'),
+                        alpha.f = 0.25)
+     )
      abline(h = 0:6*c(15),
             lty = 2) #limits
      abline(v =  12*60*60, #as.numeric(as.POSIXct("1970-01-01 12:00:00 UTC"))
@@ -412,7 +421,15 @@ with(subset(hd, stimulus %in% c("solar", "antisolar")),
           xlab = 'UTC',
           ylab = 'Sun Elevation',
           main = 'USB Camera Videos',
-           col = 'cyan4')
+          pch = 21,
+          col = 'gray50',
+           bg = adjustcolor(sapply(X = stimulus,
+                        FUN = switch,
+                        solar = 'blue4',
+                        antisolar = 'cyan4',
+                        'seagreen'),
+                        alpha.f = 0.25 )
+          )
      abline(h = 0:6*c(15),
             lty = 2) #limits
      abline(v = 12*60*60, #as.numeric(as.POSIXct("1970-01-01 12:00:00 UTC"))
