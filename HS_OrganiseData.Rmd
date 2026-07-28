@@ -478,6 +478,32 @@ hd = within(hd,
             }
             )
 ```
+`waggle_true_bearing` should be the direction relative to North.
+This has not been calculated yet.
+
+```{r check-calibration}
+with(subset(hd, stimulus %in% "vertical"),
+     {
+       print(
+     summary(calibration_mean_north_deg) 
+       )
+       print(
+     summary(declination_deg) 
+       )
+       print(
+         summary(waggle_true_bearing_deg),
+         digits = 3
+       )
+       print(
+         summary(waggle_true_bearing_deg - video_angle_deg),
+         digits = 3
+       )
+       
+     }
+     )
+```
+
+
 
 ```{r format-angles}
 #assign angles to numeric
@@ -582,6 +608,40 @@ PCfun(angles = bearing,
   )
      }
 )
+```
+
+_N.B._ Feeder azimuth is likely not correct for the horizontal videos, since no calibration has been applied. For this example, it appears to match without calibration.
+
+
+# Calculate dance offset from feeder
+```{r feeder-angle}
+#assign angles to numeric
+
+#video_angle_deg is the dance angle clockwise rel to vertical, except  error
+hd = within(hd, 
+            {
+              feeder_angle = mod_circular(angle - rad(feeder_az))# angle between dance and expected dance
+              abs_feeder_angle_deg = deg(abs(as.numeric(feeder_angle)))# absolute angle in numeric format
+            }
+            )
+
+print(
+  with(subset(hd, stimulus %in% 'vertical'), summary(abs_feeder_angle_deg)),
+  digits = 2
+)
+print(
+  with(subset(hd, stimulus %in% 'horizontal'), summary(abs_feeder_angle_deg)),
+  digits = 1
+)
+print(
+  with(subset(hd, stimulus %in% 'antisolar'), summary(abs_feeder_angle_deg)),
+  digits = 1
+)
+print(
+  with(subset(hd, stimulus %in% 'solar'), summary(abs_feeder_angle_deg)),
+  digits = 1
+)
+
 ```
 # Write out reorganised data
 
