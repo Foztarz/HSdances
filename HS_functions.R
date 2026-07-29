@@ -435,7 +435,7 @@ PCfun <- function(
   titleline = -2,
   side = 1
 ) {
-  ca <- circular(x = angles, units = 'degrees', rotation = 'clock')
+  ca <- circular(x = as.numeric(angles), units = 'degrees', rotation = 'clock')
   plot.circular(
     x = ca,
     col = col,
