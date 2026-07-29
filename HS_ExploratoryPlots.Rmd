@@ -1,0 +1,533 @@
+---
+title: "Exploratory Plots"
+author: "James Foster"
+date: "`r Sys.Date()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    toc: true
+    fig_caption: true
+editor_options: 
+  markdown: 
+    wrap: sentence
+  chunk_output_type: inline
+  # bookdown::pdf_document2:
+  #   highlight: rstudio
+---
+
+# References
+
+
+# TODO
+
+- Load data +
+- Reformat +
+- Select dances of interest
+- Plot dances of interest
+- Search for more examples
+- Plot additional examples
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Load functions and packages
+
+Load the packages and other functions that will be used during reorganisation.
+
+```{r load-functions}
+source('HS_functions.R')
+```
+
+
+# Load data
+
+
+## Load the raw data
+
+Load the raw data exported from Excel to `csv`.
+
+```{r load-the-data}
+path_file = "0Data/hs_dance_reorg.csv"
+if(!file.exists(path_file))
+{print(path_file, '\nnot found')}
+hd = read.table(file = path_file, 
+                header = T, 
+                sep  = ',')
+```
+
+
+## Inspect data
+
+Check the names of variables in this dataset.
+
+```{r check-names}
+names(hd)
+```
+
+<details>
+
+<summary>Click to expand raw data</summary>
+
+```{r inspect-data}
+print(hd)
+```
+
+
+# Format data
+
+Ensure that each variable has the correct data format for subsequent analysis.
+
+```{r Data formatting}
+hd = within(hd,
+            {
+              ID = as.factor(ID) # bee identifier as a factor
+              ID_d = as.factor(ID_d) # beedance identifier as a factor
+              day = as.factor(day) # date as a factor
+              sast_time = as.POSIXct(sast_time,
+                                     tz = "Africa/Johannesburg", 
+                                      format = "%Y-%m-%d %H:%M:%OS")#South African Standard time
+            }
+)
+u_id_d = with(hd, unique(ID_d)) # unique beedances
+length(u_id_d)#68 beedances
+```
+
+# Plot Examples
+
+
+### Plot an example dance
+
+For example we can look at the dances for Blue-22 recorded on 2025-01-28 at 
+07:57:05, 08:10:00, 08:29:00, 08:34:00 & 10:44:09—each of which is the first for 
+one of the stimulus conditions.
+Sun azimuth (possibly incorrect) is shown as an orange line.
+
+```{r example-subset}
+subs_20250128 = subset(hd, day %in% "2025-01-28")
+#find first dance for each condition on 2025.01.28
+example_lst = list()
+for(stim in unique(hd$stimulus))
+{
+example_lst[[stim]] = with(subset(subs_20250128, stimulus %in% stim),
+                           unique(ID_d)[1])
+}
+#inspect
+
+example_subs = subset(x = hd,
+                      ID_d %in% paste(unlist(example_lst))
+                      )
+
+par(mfrow = c(2,2), mar = c(0,0,0,0))
+with(subset(example_subs,
+            subset = stimulus %in% 'vertical'),
+     {
+  PCfun(angles = bearing,
+        col = 'darkgreen',
+        shrink = 1.5,
+        title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
+  lines(
+    x = c(0, sin(rad(feeder_az))),
+    y = c(0, cos(rad(feeder_az))),
+    col = adjustcolor('orange', alpha.f = 0.5),
+    lwd = 2
+  )
+     }
+)
+
+with(subset(example_subs,
+            subset = stimulus %in% 'horizontal'),
+     {
+PCfun(angles = bearing,
+      col = 'darkred',
+      shrink = 1.5,
+      title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
+         lines(
+    x = c(0, sin(rad(feeder_az))),
+    y = c(0, cos(rad(feeder_az))),
+    col = adjustcolor('orange', alpha.f = 0.5),
+    lwd = 2
+  )
+     }
+)
+with(subset(example_subs,
+            subset = stimulus %in% 'antisolar'),
+     {
+PCfun(angles = bearing,
+      col = 'cyan4',
+      shrink = 1.5,
+      title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
+         lines(
+    x = c(0, sin(rad(feeder_az))),
+    y = c(0, cos(rad(feeder_az))),
+    col = adjustcolor('orange', alpha.f = 0.5),
+    lwd = 2
+  )
+     }
+)
+with(subset(example_subs,
+            subset = stimulus %in% 'solar'),
+     {
+PCfun(angles = bearing,
+      col = 'blue4',
+      shrink = 1.5,
+      title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
+         lines(
+    x = c(0, sin(rad(feeder_az+180))),
+    y = c(0, cos(rad(feeder_az+180))),
+    col = adjustcolor('orange', alpha.f = 0.5),
+    lwd = 2
+  )
+     }
+)
+```
+
+
+These should look like the dances above but rotated so that the feeder direction 
+falls at 0°. I suspect there is a problem with angles in incompatible formats 
+in the data organisation script.
+
+```{r feeder-angle-examples}
+
+
+par(mfrow = c(2,2), mar = c(0,0,0,0))
+with(subset(example_subs,
+            subset = stimulus %in% 'vertical'),
+     {
+  PCfun(angles = deg(feeder_angle),
+        col = 'darkgreen',
+        shrink = 1.5,
+        title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
+     }
+)
+
+with(subset(example_subs,
+            subset = stimulus %in% 'horizontal'),
+     {
+PCfun(angles = deg(feeder_angle),
+      col = 'darkred',
+      shrink = 1.5,
+      title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
+     }
+)
+with(subset(example_subs,
+            subset = stimulus %in% 'antisolar'),
+     {
+PCfun(angles = deg(feeder_angle),
+      col = 'cyan4',
+      shrink = 1.5,
+      title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
+     }
+)
+with(subset(example_subs,
+            subset = stimulus %in% 'solar'),
+     {
+PCfun(angles = deg(feeder_angle),
+      col = 'blue4',
+      shrink = 1.5,
+      title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
+     }
+)
+```
+
+
+## Low elevation
+
+
+```{r low-elevation-examples}
+#find first dance for each condition on 2025.01.28
+lowel_lst = list()
+for(stim in unique(hd$stimulus))
+{
+lowel_lst[[stim]] = with(subset(hd, stimulus %in% stim &
+                                  sun_el < 15),
+                           unique(ID_d))
+}
+#inspect
+sapply(lowel_lst, length)# no low elevation for dome 
+
+
+lowel_subs = subset(x = hd,
+                      ID_d %in% paste(unlist(lowel_lst))
+                      )
+
+par(mfrow = c(2,4), mar = c(0,0,0,0))
+for(dnc in lowel_lst[['vertical']])
+{
+with(subset(lowel_subs,
+            subset = stimulus %in% 'vertical' &
+              ID_d %in% dnc
+              ),
+     {
+  PCfun(angles = bearing,
+        col = 'darkgreen',
+        shrink = 1.5,
+        title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
+  # lines(
+  #   x = c(0, sin(rad(feeder_az))),
+  #   y = c(0, cos(rad(feeder_az))),
+  #   col = adjustcolor('orange', alpha.f = 0.5),
+  #   lwd = 2
+  # )
+     }
+)
+}
+
+par(mfrow = c(2,4), mar = c(0,0,0,0))
+for (dnc in lowel_lst[['horizontal']]) {
+  with(
+    subset(lowel_subs, subset = stimulus %in% 'horizontal' & ID_d %in% dnc),
+    {
+      PCfun(
+        angles = bearing,
+        col = 'darkred',
+        shrink = 1.5,
+        title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
+      #        lines(
+      #   x = c(0, sin(rad(feeder_az))),
+      #   y = c(0, cos(rad(feeder_az))),
+      #   col = adjustcolor('orange', alpha.f = 0.5),
+      #   lwd = 2
+      # )
+    }
+  )
+}
+
+par(mfrow = c(2,4), mar = c(0,0,0,0))
+for (dnc in lowel_lst[['antisolar']]) {
+  with(subset(lowel_subs, subset = stimulus %in% 'antisolar' & ID_d %in% dnc), {
+    PCfun(
+      angles = bearing,
+      col = 'cyan4',
+      shrink = 1.5,
+      title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
+    #        lines(
+    #   x = c(0, sin(rad(feeder_az))),
+    #   y = c(0, cos(rad(feeder_az))),
+    #   col = adjustcolor('orange', alpha.f = 0.5),
+    #   lwd = 2
+    # )
+  })
+}
+
+par(mfrow = c(2,4), mar = c(0,0,0,0))
+for (dnc in lowel_lst[['solar']]) {
+  with(subset(lowel_subs, subset = stimulus %in% 'solar' & ID_d %in% dnc), {
+    PCfun(
+      angles = bearing,
+      col = 'blue4',
+      shrink = 1.5,
+      title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
+    #        lines(
+    #   x = c(0, sin(rad(feeder_az+180))),
+    #   y = c(0, cos(rad(feeder_az+180))),
+    #   col = adjustcolor('orange', alpha.f = 0.5),
+    #   lwd = 2
+    # )
+  })
+}
+```
+
+
+
+## Medium elevation
+
+
+```{r low-elevation-examples}
+#dances for each condition
+medel_lst = list()
+for(stim in unique(hd$stimulus))
+{
+medel_lst[[stim]] = with(subset(hd, stimulus %in% stim &
+                                  sun_el > 30 &
+                                  sun_el < 45 
+                                  ),
+                           unique(ID_d))
+}
+#inspect
+sapply(medel_lst, length)# no low elevation for dome 
+
+
+medel_subs = subset(x = hd,
+                      ID_d %in% paste(unlist(medel_lst))
+                      )
+
+par(mfrow = c(2,4), mar = c(0,0,0,0))
+for(dnc in medel_lst[['vertical']])
+{
+with(subset(medel_subs,
+            subset = stimulus %in% 'vertical' &
+              ID_d %in% dnc
+              ),
+     {
+  PCfun(angles = bearing,
+        col = 'darkgreen',
+        shrink = 1.5,
+        title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
+  # lines(
+  #   x = c(0, sin(rad(feeder_az))),
+  #   y = c(0, cos(rad(feeder_az))),
+  #   col = adjustcolor('orange', alpha.f = 0.5),
+  #   lwd = 2
+  # )
+     }
+)
+}
+
+par(mfrow = c(2,4), mar = c(0,0,0,0))
+for (dnc in medel_lst[['horizontal']]) {
+  with(
+    subset(medel_subs, subset = stimulus %in% 'horizontal' & ID_d %in% dnc),
+    {
+      PCfun(
+        angles = bearing,
+        col = 'darkred',
+        shrink = 1.5,
+        title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
+      #        lines(
+      #   x = c(0, sin(rad(feeder_az))),
+      #   y = c(0, cos(rad(feeder_az))),
+      #   col = adjustcolor('orange', alpha.f = 0.5),
+      #   lwd = 2
+      # )
+    }
+  )
+}
+
+par(mfrow = c(2,4), mar = c(0,0,0,0))
+for (dnc in medel_lst[['antisolar']]) {
+  with(subset(medel_subs, subset = stimulus %in% 'antisolar' & ID_d %in% dnc), {
+    PCfun(
+      angles = bearing,
+      col = 'cyan4',
+      shrink = 1.5,
+      title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
+    #        lines(
+    #   x = c(0, sin(rad(feeder_az))),
+    #   y = c(0, cos(rad(feeder_az))),
+    #   col = adjustcolor('orange', alpha.f = 0.5),
+    #   lwd = 2
+    # )
+  })
+}
+
+par(mfrow = c(2,4), mar = c(0,0,0,0))
+for (dnc in medel_lst[['solar']]) {
+  with(subset(medel_subs, subset = stimulus %in% 'solar' & ID_d %in% dnc), {
+    PCfun(
+      angles = bearing,
+      col = 'blue4',
+      shrink = 1.5,
+      title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
+    #        lines(
+    #   x = c(0, sin(rad(feeder_az+180))),
+    #   y = c(0, cos(rad(feeder_az+180))),
+    #   col = adjustcolor('orange', alpha.f = 0.5),
+    #   lwd = 2
+    # )
+  })
+}
+```
+
+
+
+
+## High elevation
+
+
+```{r low-elevation-examples}
+#dances for each condition
+higel_lst = list()
+for(stim in unique(hd$stimulus))
+{
+higel_lst[[stim]] = with(subset(hd, stimulus %in% stim &
+                                  sun_el > 75 
+                                  ),
+                           unique(ID_d))
+}
+#inspect
+sapply(higel_lst, length)# no low elevation for dome 
+
+
+higel_subs = subset(x = hd,
+                      ID_d %in% paste(unlist(higel_lst))
+                      )
+
+par(mfrow = c(2,4), mar = c(0,0,0,0))
+for(dnc in higel_lst[['vertical']])
+{
+with(subset(higel_subs,
+            subset = stimulus %in% 'vertical' &
+              ID_d %in% dnc
+              ),
+     {
+  PCfun(angles = bearing,
+        col = 'darkgreen',
+        shrink = 1.5,
+        title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
+  # lines(
+  #   x = c(0, sin(rad(feeder_az))),
+  #   y = c(0, cos(rad(feeder_az))),
+  #   col = adjustcolor('orange', alpha.f = 0.5),
+  #   lwd = 2
+  # )
+     }
+)
+}
+
+par(mfrow = c(2,4), mar = c(0,0,0,0))
+for (dnc in higel_lst[['horizontal']]) {
+  with(
+    subset(higel_subs, subset = stimulus %in% 'horizontal' & ID_d %in% dnc),
+    {
+      PCfun(
+        angles = bearing,
+        col = 'darkred',
+        shrink = 1.5,
+        title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
+      #        lines(
+      #   x = c(0, sin(rad(feeder_az))),
+      #   y = c(0, cos(rad(feeder_az))),
+      #   col = adjustcolor('orange', alpha.f = 0.5),
+      #   lwd = 2
+      # )
+    }
+  )
+}
+
+par(mfrow = c(2,4), mar = c(0,0,0,0))
+for (dnc in higel_lst[['antisolar']]) {
+  with(subset(higel_subs, subset = stimulus %in% 'antisolar' & ID_d %in% dnc), {
+    PCfun(
+      angles = bearing,
+      col = 'cyan4',
+      shrink = 1.5,
+      title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
+    #        lines(
+    #   x = c(0, sin(rad(feeder_az))),
+    #   y = c(0, cos(rad(feeder_az))),
+    #   col = adjustcolor('orange', alpha.f = 0.5),
+    #   lwd = 2
+    # )
+  })
+}
+
+par(mfrow = c(2,4), mar = c(0,0,0,0))
+for (dnc in higel_lst[['solar']]) {
+  with(subset(higel_subs, subset = stimulus %in% 'solar' & ID_d %in% dnc), {
+    PCfun(
+      angles = bearing,
+      col = 'blue4',
+      shrink = 1.5,
+      title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
+    #        lines(
+    #   x = c(0, sin(rad(feeder_az+180))),
+    #   y = c(0, cos(rad(feeder_az+180))),
+    #   col = adjustcolor('orange', alpha.f = 0.5),
+    #   lwd = 2
+    # )
+  })
+}
+```
