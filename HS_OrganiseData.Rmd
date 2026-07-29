@@ -26,12 +26,13 @@ editor_options:
 - Reorganise +
 - Add solar azimuth +
 - Export +
-- Adjust times for dome videos
+- Adjust times for dome videos +
 - Incorporate calibration
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
 
 # Load functions and packages
 
@@ -41,20 +42,29 @@ Load the packages and other functions that will be used during reorganisation.
 source('HS_functions.R')
 ```
 
+
 # Load data
+
 
 ## Load the raw data
 
 Load the raw data exported from Excel to `csv`.
 
 ```{r load-the-data}
-path_file = "0Data/B22_dances_with_calibrations.csv"
-if(!file.exists(path_file))
+path_file = file.path("0Data/",
+                      c("B22_dances_with_calibrations.csv",
+                        "B66_dances_with_calibrations.csv")
+)
+if(any(!file.exists(path_file)))
 {print(path_file, '\nnot found')}
-hd = read.table(file = path_file, 
+hd = lapply(X = path_file,
+            FUN = read.table,#(file = path_file, 
                 header = T, 
                 sep  = ',')
+hd = do.call(what = rbind,
+             args = hd)
 ```
+
 
 ## Inspect data
 
@@ -73,11 +83,15 @@ print(hd[dim(hd)[1],])
 print(hd)
 ```
 
+
+
 # Reorganise
 
 ```{r check-column-names}
 names(hd)
 ```
+
+
 ## Rename variables
 
 Rename some variables with shorter or easier to recognise names. 
@@ -102,6 +116,8 @@ hd = within(hd, {
               ))
 })
 ```
+
+
 
 ## Identify factor levels
 Some of the character variables could be treated as factors. 
@@ -317,6 +333,8 @@ axis(side = 1,
      labels = 7:19)
 axis(side = 2)
 ```
+
+
 ### Estimate sun location
 
 ```{r add-sun}
@@ -372,11 +390,22 @@ print(feeder_bearing, digits = 3)
 #add feeder azimuth
 hd = within(hd, 
             {
-            feeder_az = Mod360.180(sun_az - feeder_bearing)
+            feeder_az = Mod360.180(feeder_bearing - sun_az)
+            }
+            )
+
+#correct solar videos
+hd = within(hd,
+            {
+              feeder_az = ifelse(stimulus %in%
+                                 "solar",
+                                 Mod360.180(feeder_az + 180),
+                                 feeder_az)
             }
             )
 print(with(hd, summary(feeder_az)), digits = 3)
 ```
+
 
 ### Plot sanity checks
 
@@ -514,8 +543,10 @@ hd = within(hd,
               # bearing = deg(atan2(y = direction_v, x = direction_u) + pi/2) %% 360
               bearing = video_angle_deg
               signed_angle = Mod360.180(video_angle_deg)  # bearing between -180 and 180
-              angle = circular(rad(signed_angle),# bearing between -pi and pi
-                               rotation = 'clock') # circular format suppresses later warnings
+              # angle = circular(rad(signed_angle),# bearing between -pi and pi
+              #                  rotation = 'clock') # circular format suppresses later warnings
+              angle = rad(signed_angle)# circular format is not needed for organising
+                               
               rm('video_angle_deg')
             }
             )
@@ -555,8 +586,8 @@ with(subset(example_subs,
         shrink = 1.5,
         title = paste(unique(time), unique(stimulus)))
   lines(
-    x = c(0, sin(-rad(feeder_az))),
-    y = c(0, cos(-rad(feeder_az))),
+    x = c(0, sin(rad(feeder_az))),
+    y = c(0, cos(rad(feeder_az))),
     col = adjustcolor('orange', alpha.f = 0.5),
     lwd = 2
   )
@@ -571,8 +602,8 @@ PCfun(angles = bearing,
       shrink = 1.5,
       title = paste(unique(time), unique(stimulus)))
          lines(
-    x = c(0, sin(-rad(feeder_az))),
-    y = c(0, cos(-rad(feeder_az))),
+    x = c(0, sin(rad(feeder_az))),
+    y = c(0, cos(rad(feeder_az))),
     col = adjustcolor('orange', alpha.f = 0.5),
     lwd = 2
   )
@@ -586,8 +617,8 @@ PCfun(angles = bearing,
       shrink = 1.5,
       title = paste(unique(time), unique(stimulus)))
          lines(
-    x = c(0, sin(-rad(feeder_az))),
-    y = c(0, cos(-rad(feeder_az))),
+    x = c(0, sin(rad(feeder_az))),
+    y = c(0, cos(rad(feeder_az))),
     col = adjustcolor('orange', alpha.f = 0.5),
     lwd = 2
   )
@@ -601,8 +632,8 @@ PCfun(angles = bearing,
       shrink = 1.5,
       title = paste(unique(time), unique(stimulus)))
          lines(
-    x = c(0, sin(-rad(feeder_az+180))),
-    y = c(0, cos(-rad(feeder_az+180))),
+    x = c(0, sin(rad(feeder_az+180))),
+    y = c(0, cos(rad(feeder_az+180))),
     col = adjustcolor('orange', alpha.f = 0.5),
     lwd = 2
   )
@@ -620,7 +651,7 @@ _N.B._ Feeder azimuth is likely not correct for the horizontal videos, since no 
 #video_angle_deg is the dance angle clockwise rel to vertical, except  error
 hd = within(hd, 
             {
-              feeder_angle = mod_circular(angle - rad(feeder_az))# angle between dance and expected dance
+              feeder_angle = mod_circular(rad(bearing - feeder_az))# angle between dance and expected dance
               abs_feeder_angle_deg = deg(abs(as.numeric(feeder_angle)))# absolute angle in numeric format
             }
             )
@@ -643,13 +674,63 @@ print(
 )
 
 ```
+### Plot example feeder angles
+
+```{r feeder-angle-examples}
+#update the subset
+example_subs = subset(x = hd,
+                      ID_d %in% paste(unlist(example_lst))
+                      )
+
+par(mfrow = c(2,2), mar = c(0,0,0,0))
+with(subset(example_subs,
+            subset = stimulus %in% 'vertical'),
+     {
+  PCfun(angles = deg(feeder_angle),
+        col = 'darkgreen',
+        shrink = 1.5,
+        title = paste(unique(time), unique(stimulus)))
+     }
+)
+
+with(subset(example_subs,
+            subset = stimulus %in% 'horizontal'),
+     {
+PCfun(angles = deg(feeder_angle),
+      col = 'darkred',
+      shrink = 1.5,
+      title = paste(unique(time), unique(stimulus)))
+     }
+)
+with(subset(example_subs,
+            subset = stimulus %in% 'antisolar'),
+     {
+PCfun(angles = deg(feeder_angle),
+      col = 'cyan4',
+      shrink = 1.5,
+      title = paste(unique(time), unique(stimulus)))
+     }
+)
+with(subset(example_subs,
+            subset = stimulus %in% 'solar'),
+     {
+PCfun(angles = deg(feeder_angle),
+      col = 'blue4',
+      shrink = 1.5,
+      title = paste(unique(time), unique(stimulus)))
+     }
+)
+```
+
+
+
 # Write out reorganised data
 
 ```{r write-data}
 # Write out table
 
 write.table(x = hd,
-            file = file.path(dirname(path_file), "hs_dance_reorg.csv"),
+            file = file.path(unique(dirname(path_file))[1], "hs_dance_reorg.csv"),
             sep = ',',
             row.names = FALSE
             )
