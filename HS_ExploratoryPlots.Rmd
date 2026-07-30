@@ -261,7 +261,7 @@ with(subset(lowel_subs,
               ID_d %in% dnc
               ),
      {
-  PCfun(angles = bearing,
+  PCfun(angles = deg(feeder_angle),
         col = 'darkgreen',
         shrink = 1.5,
         title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
@@ -281,7 +281,7 @@ for (dnc in lowel_lst[['horizontal']]) {
     subset(lowel_subs, subset = stimulus %in% 'horizontal' & ID_d %in% dnc),
     {
       PCfun(
-        angles = bearing,
+        angles = deg(feeder_angle),
         col = 'darkred',
         shrink = 1.5,
         title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
@@ -299,7 +299,7 @@ par(mfrow = c(2,4), mar = c(0,0,0,0))
 for (dnc in lowel_lst[['antisolar']]) {
   with(subset(lowel_subs, subset = stimulus %in% 'antisolar' & ID_d %in% dnc), {
     PCfun(
-      angles = bearing,
+      angles = deg(feeder_angle),
       col = 'cyan4',
       shrink = 1.5,
       title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
@@ -316,7 +316,7 @@ par(mfrow = c(2,4), mar = c(0,0,0,0))
 for (dnc in lowel_lst[['solar']]) {
   with(subset(lowel_subs, subset = stimulus %in% 'solar' & ID_d %in% dnc), {
     PCfun(
-      angles = bearing,
+      angles = deg(feeder_angle),
       col = 'blue4',
       shrink = 1.5,
       title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
@@ -362,7 +362,7 @@ with(subset(medel_subs,
               ID_d %in% dnc
               ),
      {
-  PCfun(angles = bearing,
+  PCfun(angles = deg(feeder_angle),
         col = 'darkgreen',
         shrink = 1.5,
         title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
@@ -382,7 +382,7 @@ for (dnc in medel_lst[['horizontal']]) {
     subset(medel_subs, subset = stimulus %in% 'horizontal' & ID_d %in% dnc),
     {
       PCfun(
-        angles = bearing,
+        angles = deg(feeder_angle),
         col = 'darkred',
         shrink = 1.5,
         title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
@@ -400,7 +400,7 @@ par(mfrow = c(2,4), mar = c(0,0,0,0))
 for (dnc in medel_lst[['antisolar']]) {
   with(subset(medel_subs, subset = stimulus %in% 'antisolar' & ID_d %in% dnc), {
     PCfun(
-      angles = bearing,
+      angles = deg(feeder_angle),
       col = 'cyan4',
       shrink = 1.5,
       title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
@@ -417,7 +417,7 @@ par(mfrow = c(2,4), mar = c(0,0,0,0))
 for (dnc in medel_lst[['solar']]) {
   with(subset(medel_subs, subset = stimulus %in% 'solar' & ID_d %in% dnc), {
     PCfun(
-      angles = bearing,
+      angles = deg(feeder_angle),
       col = 'blue4',
       shrink = 1.5,
       title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
@@ -463,7 +463,7 @@ with(subset(higel_subs,
               ID_d %in% dnc
               ),
      {
-  PCfun(angles = bearing,
+  PCfun(angles = deg(feeder_angle),
         col = 'darkgreen',
         shrink = 1.5,
         title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
@@ -483,7 +483,7 @@ for (dnc in higel_lst[['horizontal']]) {
     subset(higel_subs, subset = stimulus %in% 'horizontal' & ID_d %in% dnc),
     {
       PCfun(
-        angles = bearing,
+        angles = deg(feeder_angle),
         col = 'darkred',
         shrink = 1.5,
         title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
@@ -501,7 +501,7 @@ par(mfrow = c(2,4), mar = c(0,0,0,0))
 for (dnc in higel_lst[['antisolar']]) {
   with(subset(higel_subs, subset = stimulus %in% 'antisolar' & ID_d %in% dnc), {
     PCfun(
-      angles = bearing,
+      angles = deg(feeder_angle),
       col = 'cyan4',
       shrink = 1.5,
       title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
@@ -518,7 +518,7 @@ par(mfrow = c(2,4), mar = c(0,0,0,0))
 for (dnc in higel_lst[['solar']]) {
   with(subset(higel_subs, subset = stimulus %in% 'solar' & ID_d %in% dnc), {
     PCfun(
-      angles = bearing,
+      angles = deg(feeder_angle),
       col = 'blue4',
       shrink = 1.5,
       title = paste(unique(time), unique(stimulus), "\n", unique(ID)))
