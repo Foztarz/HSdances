@@ -422,6 +422,91 @@ GetToD <- function(tm, tz = attr(tm, "tzone")) {
   return(tod)
 }
 
+
+#convert an alphanumeric longitude or latitude
+#in degrees, minutes, seconds, cardinal direction
+#to its decimal equivalent
+Alphnum2decimal <- function(alphnum) {
+  # cardinal direction (character)
+  card <- alphnum[4]
+  # number components (reformat to numeric)
+  numb <- sapply(X = alphnum[-4], FUN = as.numeric)
+  dec <- switch(
+    EXPR = card,
+    N = 1,
+    E = 1,
+    S = -1,
+    W = -1,
+    North = 1,
+    East = 1,
+    South = -1,
+    West = -1,
+    1
+  ) *
+    (
+      numb[1] + #degrees
+        numb[2] / 60 + #minutes
+        numb[3] / (60 * 60) #seconds
+    )
+  return(dec)
+}
+
+#convert an alphanumeric string of latitude and longitude
+#to a pair of signed decimals of longitude and latitude
+Dms2decimal <- function(alphanum) {
+  # Accept the single alphanumeric coordinate pair string and clean it up
+  # This splits by any sequence of degrees, minutes, seconds symbols, spaces, or commas
+  # e.g., "25° 34' 18" S, 31° 10' 48" E" -> c("25", "34", "18", "S", "31", "10", "48", "E")
+  raw_tokens <- unlist(strsplit(
+    x = alphanum,
+    split = "[°'\",\\s]+",
+    perl = TRUE
+  ))
+
+  # Remove any accidental trailing empty strings from the split
+  raw_tokens <- raw_tokens[raw_tokens != ""]
+
+  # Group the flat tokens into two distinct sub-lists: [[lat_components], [lon_components]]
+  # Each sub-list will match your exact expected layout: c(Deg, Min, Sec, Direction)
+  lst <- list(
+    latitude = switch(
+      raw_tokens[4], # check 4th position is a N–S cardinal direction
+      N = raw_tokens[1:4],
+      S = raw_tokens[1:4],
+      North = raw_tokens[1:4],
+      South = raw_tokens[1:4],
+      E = raw_tokens[5:8], #otherwise use 2nd component
+      W = raw_tokens[5:8],
+      East = raw_tokens[5:8],
+      West = raw_tokens[5:8],
+      raw_tokens[1:4]
+    ),
+
+    longitude = switch(
+      raw_tokens[8], # check 8th position is an E–W cardinal direction
+      E = raw_tokens[5:8],
+      W = raw_tokens[5:8],
+      East = raw_tokens[5:8],
+      West = raw_tokens[5:8],
+      N = raw_tokens[1:4], #otherwise use 1st component
+      S = raw_tokens[1:4],
+      North = raw_tokens[1:4],
+      South = raw_tokens[1:4],
+      raw_tokens[5:8]
+    )
+  )
+
+  #Convert each component to decimal, collapse to vector
+  dec <- sapply(X = lst, FUN = Alphnum2decimal)
+  #inherit names from list version
+  names(dec) <- names(lst)
+
+  # for some reason geosphere takes bearings in the order: longitude, latitude
+  dec <- dec[c('longitude', 'latitude')] # should inherit names, in for troubleshooting
+  return(dec)
+}
+
+
 # Circular plotting functions ---------------------------------------------
 
 #Plot a circular dataset as a stacked dot plot (clockwise, north-up convention).
