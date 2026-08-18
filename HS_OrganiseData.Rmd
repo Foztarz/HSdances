@@ -370,18 +370,22 @@ print(with(hd, sapply(X = list(sun_az, sun_el),FUN =  summary)),
 ```
 ```{r add-feeder-angle}
 # Hive position
-# 25° 34' 19" S, 31° 10' 53" E
-#-25.571944, 31.181389
+# 25° 34' 18" S, 31° 10' 48" E
+#-25.57167,      31.18000 
 
 # Feeder position
 # 25° 34' 14" S, 31° 10' 59" E
-#-25.570556, 31.183056
+#-25.57056,      31.18306
+
+hive = r"(25° 34' 18" S, 31° 10' 48" E)" # N.B. this string contains literal " so needs wrapping in r"()"
+
+feeder = r"(25° 34' 14" S, 31° 10' 59" E)"
 
 # Define coordinates (lon, lat)
-hive = c(longitude = 31.181389, 
-         latitude = -25.571944)
-feeder =  c(longitude = 31.183056, 
-            latitude = -25.570556)
+hive = Dms2decimal(hive) 
+feeder =  Dms2decimal(feeder)
+#N.B. Dms2decimal converts from (latitude, longitude) to (longitude, latitude)
+# to conform with geosphere::bearing
 
 # Calculate bearing from hive to feeder
 feeder_bearing = bearing(hive, feeder)
