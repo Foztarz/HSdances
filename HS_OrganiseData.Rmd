@@ -368,6 +368,8 @@ hd = within(hd,
 print(with(hd, sapply(X = list(sun_az, sun_el),FUN =  summary)),
       digits = 2)
 ```
+### Add Feeder angle
+
 ```{r add-feeder-angle}
 # Hive position
 # 25° 34' 18" S, 31° 10' 48" E
@@ -390,6 +392,8 @@ feeder =  Dms2decimal(feeder)
 # Calculate bearing from hive to feeder
 feeder_bearing = bearing(hive, feeder)
 print(feeder_bearing, digits = 3)
+feeder_distance = distGeo(hive, feeder)
+print(feeder_distance, digits = 3)
 
 #add feeder azimuth
 hd = within(hd, 
