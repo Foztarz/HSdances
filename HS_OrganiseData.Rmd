@@ -28,6 +28,7 @@ editor_options:
 - Export +
 - Adjust times for dome videos +
 - Incorporate calibration
+- Remove duplicates
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -51,20 +52,39 @@ source('HS_functions.R')
 Load the raw data exported from Excel to `csv`.
 
 ```{r load-the-data}
-path_file = file.path("0Data/",
-                      c("B22_dances_with_calibrations.csv",
-                        "B66_dances_with_calibrations.csv")
+path_file = file.path("0Data",
+                      c(#"B22_dances.csv",
+                        #"B66_dances.csv",
+                        "HD_calib.csv")#horizontal and dome calibrated dances 
 )
 if(any(!file.exists(path_file)))
-{print(path_file, '\nnot found')}
+{print(paste(path_file, '\nnot found'))}
 hd = lapply(X = path_file,
             FUN = read.table,#(file = path_file, 
                 header = T, 
                 sep  = ',')
 hd = do.call(what = rbind,
-             args = hd)
+             args = hd)#HD_calib has different number of columns
 ```
 
+
+## Combine calibrated and uncalibrated data
+
+```{r check-calibrated}
+# nm_vert = names(hd)
+# nm_calib = names(hd_calib)
+# print(nm_calib[!(nm_calib %in% nm_vert)])
+# print(nm_vert[!(nm_vert %in% nm_calib)])
+#some of these have analogues in nm_vert
+# hd_calib = within(hd_calib,
+hd = within(hd,
+                  {
+                    dancer_id = bee_id
+                    stimulus = condition
+                    rm('bee_id', 'condition')
+                  }
+                  )
+```
 
 ## Inspect data
 
@@ -104,15 +124,40 @@ hd = within(hd, {
   ID = paste0(dancer_id) # individual identifier
   ID_d = paste0(dance_id, "_", 
                 time, "_",
-                source_batch) # dance identifier
-  day = source_batch # this is already in POSIX format
+                date) # dance identifier
+  day = date # this will need to be converted to POSIX format
   video_file = file.path(basename(dirname(video_name)), #just the folder
                          basename(video_name)) # and file name
   #clean up information that has been doubled
   rm(list = c('dancer_id', 'dance_id', 'dance_key', 'source_batch', "date",
               "video_name", #should be identifiable from video_file
-              "waggle_directions",#split into direction_u  and direction_v
-              "start_xy"#split into "start_x" and "start_y" 
+              # "waggle_directions",#split into direction_u  and direction_v
+              "start_xy", #split into "start_x" and "start_y" 
+              "X21_calibration_11.21.50_waggle_annotations.csv", #unlikely to use later
+              "source_file_type", #unlikely to use later
+              "orientation_method", #unlikely to use later
+              "mean_magnetic_north_deg", # we already have "true_north_video_deg"
+              "true_north_calibration_deg", # we already have "true_north_video_deg"
+              "compass_circular_sd_deg", #unlikely to use later
+              "calibration_n_annotations", #unlikely to use later
+              "reference_compass_file", #unlikely to use later
+              "assigned_calibration_file", #unlikely to use later
+              "calibration_id", #unlikely to use later
+              "calibration_file", #unlikely to use later
+              "reference_landmark_file", #unlikely to use later
+              "landmark_dance_file", #unlikely to use later
+              "landmark_calibration_deg", #unlikely to use later
+              "landmark_calibration_circular_sd_deg", #unlikely to use later
+              "north_relative_to_landmark_deg", #unlikely to use later
+              "landmark_dance_video_deg", #unlikely to use later
+              "landmark_dance_circular_sd_deg", #unlikely to use later
+              "start_frame", #unlikely to use later
+              "annotation_session", #unlikely to use later
+              "orientation_notes", #unlikely to use later
+              "calibration_video_name", #unlikely to use later
+              "calibration_R", #unlikely to use later
+              "calibration_notes", #unlikely to use later
+              "orientation_block" #unlikely to use later
               ))
 })
 ```
@@ -174,10 +219,11 @@ nm_num = c(
 "direction_u",
 "direction_v",
 "video_angle_deg",
-"start_frame",
+# "start_frame", #removed
  # "video_name"        
-"annotation_session"
+#"annotation_session",#removed
 # [20,] "source_batch"
+"waggle_true_bearing_deg"
 )
 #format factors
 for(nm in nm_fact)
@@ -196,6 +242,7 @@ summary(hd)
 
 There appears to have been an autofill error in stimulus labelling. 
 Rename all unexpected stimuli to `deg_10`, 10° above horizontal.
+*20260818* Has this been fixed? Could skip.
 ```{r reformat-stimulus}
 hd = within(hd,
             {
@@ -205,6 +252,7 @@ hd = within(hd,
                                 horizontal = "horizontal",
                                 antisolar = "antisolar",
                                 solar = "solar",
+                                zenith = "zenith",
                                 deg_10 = "deg_10",
                                 "deg_10")#otherwise always deg_10
             }
@@ -280,7 +328,8 @@ hd = within(hd,
                                  time)#time in YYYY-MM-DD HH:MM:SS
               sast_time =  as.POSIXct(time_code, 
                                       tz = "Africa/Johannesburg", 
-                                      format = "%Y-%m-%d %H:%M:%OS")#South African Standard time
+                                      format = "%Y%m%d %H:%M:%OS")#South African Standard time
+                                      # format = "%Y-%m-%d %H:%M:%OS")#South African Standard time
               utc_time =  as.POSIXct(sast_time, tz = "UTC")#UTC time
               rm("time_code")#now duplicated
             }
@@ -303,6 +352,7 @@ hd = within(hd,
                                  deg_10 = sast_time,  
                                  antisolar = sast_time + 60*60, #60 min x 60 seconds
                                  solar = sast_time + 60*60,
+                                 zenith = sast_time + 60*60,
                                  sast_time
                                  ),
                 tz = "Africa/Johannesburg", 
@@ -339,9 +389,13 @@ axis(side = 2)
 
 ```{r add-sun}
 # Hive position
-# 25° 34' 19" S, 31° 10' 53" E
-#-25.571944, 31.181389
+# 25° 34' 18" S, 31° 10' 48" E
+#-25.57167,      31.18000 
 
+hive = r"(25° 34' 18" S, 31° 10' 48" E)" # N.B. this string contains literal " so needs wrapping in r"()"
+
+# Define coordinates (lon, lat)
+hive = Dms2decimal(hive) 
 
 #add sun azimuth
 hd = within(hd, 
@@ -349,8 +403,9 @@ hd = within(hd,
             sun_az = mapply(
                    FUN = GetSaz,
                    tm = utc_time,
-                   lon = 31.181389,
-                   lat = -25.571944)
+                   lon = hive['longitude'],
+                   lat = hive['latitude']
+                   )
             }
             )
 
@@ -360,8 +415,9 @@ hd = within(hd,
             sun_el = mapply(
                    FUN = GetSel,
                    tm = utc_time,
-                   lon = 31.181389,
-                   lat = -25.571944)
+                   lon = hive['longitude'],
+                   lat = hive['latitude']
+                   )
             }
             )
 
@@ -523,7 +579,7 @@ There is a true North for the horizontal condition
 with(subset(hd, stimulus %in% "horizontal"),
      {
        print(
-     summary(calibration_mean_north_deg) 
+     summary(true_north_video_deg) 
        )
        print(
      summary(declination_deg) 
@@ -566,11 +622,14 @@ hd = within(hd,
                                horizontal = waggle_true_bearing_deg, #corrected with compass
                                deg10 = waggle_true_bearing_deg,
                                vertical =  video_angle_deg, #aligned by default
-                               antisolar = video_angle_deg, #aligned by default
-                               solar = (video_angle_deg +180) %% 360, #misaligned 180°
+                               # antisolar = video_angle_deg, #aligned by default
+                               # solar = (video_angle_deg +180) %% 360, #misaligned 180°
+                               antisolar = waggle_true_bearing_deg, #now calibrated
+                               solar = waggle_true_bearing_deg, #now calibrated
+                               zenith = waggle_true_bearing_deg, #now calibrated
                                video_angle_deg
                               )
-              signed_angle = Mod360.180(video_angle_deg)  # bearing between -180 and 180
+              signed_angle = Mod360.180(bearing)  # bearing between -180 and 180
               # angle = circular(rad(signed_angle),# bearing between -pi and pi
               #                  rotation = 'clock') # circular format suppresses later warnings
               angle = rad(signed_angle)# circular format is not needed for organising
@@ -590,7 +649,7 @@ one of the stimulus conditions.
 Sun azimuth (possibly incorrect) is shown as an orange line.
 
 ```{r example-subset}
-subs_20250128 = subset(hd, day %in% "2025-01-28")
+subs_20250128 = subset(hd, day %in% "20250128")
 #find first dance for each condition on 2025.01.28
 example_lst = list()
 for(stim in unique(hd$stimulus))
@@ -606,21 +665,21 @@ example_subs = subset(x = hd,
                       )
 
 par(mfrow = c(2,2), mar = c(0,0,0,0))
-with(subset(example_subs,
-            subset = stimulus %in% 'vertical'),
-     {
-  PCfun(angles = bearing,
-        col = 'darkgreen',
-        shrink = 1.5,
-        title = paste(unique(time), unique(stimulus)))
-  lines(
-    x = c(0, sin(rad(feeder_az))),
-    y = c(0, cos(rad(feeder_az))),
-    col = adjustcolor('orange', alpha.f = 0.5),
-    lwd = 2
-  )
-     }
-)
+    # with(subset(example_subs,
+    #             subset = stimulus %in% 'vertical'),
+    #      {
+    #   PCfun(angles = bearing,
+    #         col = 'darkgreen',
+    #         shrink = 1.5,
+    #         title = paste(unique(time), unique(stimulus)))
+    #   lines(
+    #     x = c(0, sin(rad(feeder_az))),
+    #     y = c(0, cos(rad(feeder_az))),
+    #     col = adjustcolor('orange', alpha.f = 0.5),
+    #     lwd = 2
+    #   )
+    #      }
+    # )
 
 with(subset(example_subs,
             subset = stimulus %in% 'horizontal'),
@@ -710,15 +769,15 @@ example_subs = subset(x = hd,
                       )
 
 par(mfrow = c(2,2), mar = c(0,0,0,0))
-with(subset(example_subs,
-            subset = stimulus %in% 'vertical'),
-     {
-  PCfun(angles = deg(feeder_angle),
-        col = 'darkgreen',
-        shrink = 1.5,
-        title = paste(unique(time), unique(stimulus)))
-     }
-)
+    # with(subset(example_subs,
+    #             subset = stimulus %in% 'vertical'),
+    #      {
+    #   PCfun(angles = deg(feeder_angle),
+    #         col = 'darkgreen',
+    #         shrink = 1.5,
+    #         title = paste(unique(time), unique(stimulus)))
+    #      }
+    # )
 
 with(subset(example_subs,
             subset = stimulus %in% 'horizontal'),
