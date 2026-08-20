@@ -55,7 +55,9 @@ Load the raw data exported from Excel to `csv`.
 path_file = file.path("0Data",
                       c(#"B22_dances.csv",
                         #"B66_dances.csv",
-                        "HD_calib.csv")#horizontal and dome calibrated dances 
+                        "H_calib.csv",#horizontal and dome calibrated dances 
+                        "V_uncalib.csv"#vertical dances (not yet calibrated0)
+                        )
 )
 if(any(!file.exists(path_file)))
 {print(paste(path_file, '\nnot found'))}
@@ -63,27 +65,30 @@ hd = lapply(X = path_file,
             FUN = read.table,#(file = path_file, 
                 header = T, 
                 sep  = ',')
-hd = do.call(what = rbind,
-             args = hd)#HD_calib has different number of columns
 ```
 
 
 ## Combine calibrated and uncalibrated data
+Column names should match.
+```{r check-datasets}
+nm_vert = names(hd[[1]])
+nm_calib = names(hd[[2]])
+if(any(!(nm_calib %in% nm_vert) |
+       !(nm_vert %in% nm_calib))
+   )
+{
+  message("horizontal columns not in vertical")
+print(nm_calib[!(nm_calib %in% nm_vert)])
+  message("vertical columns not in horizontal")
+print(nm_vert[!(nm_vert %in% nm_calib)])
+}else
+{print("columns match in all CSVs")}
+```
 
-```{r check-calibrated}
-# nm_vert = names(hd)
-# nm_calib = names(hd_calib)
-# print(nm_calib[!(nm_calib %in% nm_vert)])
-# print(nm_vert[!(nm_vert %in% nm_calib)])
-#some of these have analogues in nm_vert
-# hd_calib = within(hd_calib,
-hd = within(hd,
-                  {
-                    dancer_id = bee_id
-                    stimulus = condition
-                    rm('bee_id', 'condition')
-                  }
-                  )
+
+```{r combine-vertical-horizontal}
+hd = do.call(what = rbind,
+             args = hd)#HD_calib has different number of columns
 ```
 
 ## Inspect data
