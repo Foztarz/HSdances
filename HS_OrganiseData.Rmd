@@ -27,7 +27,7 @@ editor_options:
 - Add solar azimuth +
 - Export +
 - Adjust times for dome videos +
-- Incorporate calibration
+- Incorporate calibrated dances +
 - Remove duplicates
 
 ```{r setup, include=FALSE}
@@ -370,9 +370,14 @@ empty_dances = with(subset(hd,
                                      video_file %in% "/"), # result of file.path('','')
                     unique(ID_d)
                     )
+if(empty_dances)
+{
+  print("removing empty dances:")
+  print(as.character(t(t(empty_dances))))
 hd = subset(hd,
             subset = !(ID_d %in% empty_dances)
             )
+}
 
 missing_time = c('na', '')
 
@@ -751,7 +756,7 @@ with(subset(hd, condition %in% c("solar", "antisolar")),
 
 ```
 
-## Format angles
+# Format angles
 
 ```{r investigate-angles}
 #check angle format
