@@ -53,8 +53,7 @@ Load the raw data exported from Excel to `csv`.
 
 ```{r load-the-data}
 path_file = file.path("0Data",
-                      c(#"B22_dances.csv",
-                        #"B66_dances.csv",
+                      c(
                         "H_calib.csv",#horizontal and dome calibrated dances 
                         "V_uncalib.csv"#vertical dances (not yet calibrated0)
                         )
@@ -62,14 +61,14 @@ path_file = file.path("0Data",
 if(any(!file.exists(path_file)))
 {print(paste(path_file, '\nnot found'))}
 hd = lapply(X = path_file,
-            FUN = read.table,#(file = path_file, 
+            FUN = read.table,
                 header = T, 
                 sep  = ',')
 ```
 
 
 ## Combine calibrated and uncalibrated data
-Column names should match.
+Check that all column names match across files loaded.
 ```{r check-datasets}
 nm_vert = names(hd[[1]])
 nm_calib = names(hd[[2]])
@@ -85,10 +84,10 @@ print(nm_vert[!(nm_vert %in% nm_calib)])
 {print("columns match in all CSVs")}
 ```
 
-
+Bind the tables together one set of rows on top of the other
 ```{r combine-vertical-horizontal}
 hd = do.call(what = rbind,
-             args = hd)#HD_calib has different number of columns
+             args = hd)
 ```
 
 ## Inspect data
@@ -99,6 +98,8 @@ Check that the last row contains data.
 ```{r check-last-row}
 print(hd[dim(hd)[1],])
 ```
+
+Last row contains at least some data, placeholder?
 
 <details>
 
@@ -122,49 +123,71 @@ names(hd)
 Rename some variables with shorter or easier to recognise names. 
 Video names currently include the full path for the user that annotated them 
 these can be simplified to just file name and folder (date recorded).
+There are two kinds of grouping factor, firstly the identity of the individual bee,
+simplified here to `ID`, and within each individual bee their individual dances,
+specified here as `ID_d`.
+The date is now in `YYYYDDMM` format, this will be reformatted later.
 
 
 ```{r rename-variables}
+#from the list above, identify unused or renamed columns to remove
+rm_lst = c(
+  "recording_type", #not used currently
+  "source_batch", #not used currently
+  "dance_key", #not used currently
+  "dance_id", #renamed
+  "bee_id", # renamed
+  "date", #renamed
+  "time_dance", #renamed
+  # [8,] "waggle_run"
+  # [9,] "condition"
+  "orientation_method", #not currently used
+  # [11,] "csv_file"
+  "video_name", #should be identifiable from video_file
+  # [13,] "direction_u"
+  # [14,] "direction_v"
+  # [15,] "video_angle_deg"
+  # [16,] "true_north_video_deg"
+  # [17,] "waggle_true_bearing_deg"
+  # [18,] "mean_magnetic_north_deg"
+  # [19,] "true_north_calibration_deg"
+  "compass_circular_sd_deg", #not currently used
+  "calibration_n_annotations", #not currently used
+  # [22,] "calibration_quality_flag"
+  "reference_compass_file", #not currently used
+  "assigned_calibration_file", #not currently used
+  "calibration_id", #not currently used
+  "calibration_file", #not currently used
+  "reference_landmark_file", #not currently used
+  "landmark_dance_file", #not currently used
+  "landmark_calibration_deg", #not currently used
+  "landmark_calibration_circular_sd_deg", #not currently used
+  "north_relative_to_landmark_deg", #not currently used
+  "landmark_dance_video_deg", #not currently used
+  "landmark_dance_circular_sd_deg", #not currently used
+  # [34,] "start_x"
+  # [35,] "start_y"
+  "start_xy", #same as start_x, start_y
+  "start_frame", #not currently used
+  "notes"
+  # [39,] "calibration_R"
+  # [40,] "declination_deg"
+)
 hd = within(hd, {
-  ID = paste0(dancer_id) # individual identifier
-  ID_d = paste0(dance_id, "_", 
-                time, "_",
-                date) # dance identifier
+  ID = paste0(bee_id) # individual identifier
+  ID_d = paste0(dance_id, "_", time_dance, "_", date) # dance identifier
+  time = time_dance
   day = date # this will need to be converted to POSIX format
-  video_file = file.path(basename(dirname(video_name)), #just the folder
-                         basename(video_name)) # and file name
-  #clean up information that has been doubled
-  rm(list = c('dancer_id', 'dance_id', 'dance_key', 'source_batch', "date",
-              "video_name", #should be identifiable from video_file
-              # "waggle_directions",#split into direction_u  and direction_v
-              "start_xy", #split into "start_x" and "start_y" 
-              "X21_calibration_11.21.50_waggle_annotations.csv", #unlikely to use later
-              "source_file_type", #unlikely to use later
-              "orientation_method", #unlikely to use later
-              "mean_magnetic_north_deg", # we already have "true_north_video_deg"
-              "true_north_calibration_deg", # we already have "true_north_video_deg"
-              "compass_circular_sd_deg", #unlikely to use later
-              "calibration_n_annotations", #unlikely to use later
-              "reference_compass_file", #unlikely to use later
-              "assigned_calibration_file", #unlikely to use later
-              "calibration_id", #unlikely to use later
-              "calibration_file", #unlikely to use later
-              "reference_landmark_file", #unlikely to use later
-              "landmark_dance_file", #unlikely to use later
-              "landmark_calibration_deg", #unlikely to use later
-              "landmark_calibration_circular_sd_deg", #unlikely to use later
-              "north_relative_to_landmark_deg", #unlikely to use later
-              "landmark_dance_video_deg", #unlikely to use later
-              "landmark_dance_circular_sd_deg", #unlikely to use later
-              "start_frame", #unlikely to use later
-              "annotation_session", #unlikely to use later
-              "orientation_notes", #unlikely to use later
-              "calibration_video_name", #unlikely to use later
-              "calibration_R", #unlikely to use later
-              "calibration_notes", #unlikely to use later
-              "orientation_block" #unlikely to use later
-              ))
+
+  video_file = file.path(
+    basename(dirname(video_name)), #just the folder
+    basename(video_name)
+  ) # and file name
+  #clean up information that has been doubled or will not be used
+  rm(list = rm_lst)
 })
+#confirm resulting columns
+names(hd)
 ```
 
 
@@ -173,29 +196,35 @@ hd = within(hd, {
 Some of the character variables could be treated as factors. 
 Inspect the different labels to each to check these are informative.
 
+
+<details>
+
+<summary>Click to expand full list</summary>
+
 ```{r summarise-factors}
-nm_fact = c( "ID",         
- "ID_d"          ,
- # "dance_key"         ,
- # [4,] "waggle_run"        
- "stimulus"         , 
- # "notes"            , 
- # [7,] "waggle_directions" 
-#  [8,] "start_x"           
-#  [9,] "start_y"           
-# [10,] "start_xy"          
-# [11,] "csv_file"          
-# [12,] "time"              
-# [13,] "date"              
-# [14,] "direction_u"       
-# [15,] "direction_v"       
-# [16,] "video_angle_deg"   
-# [17,] "start_frame"       
- # "video_name"        
- "video_file" # avoid printing full path        
-# [19,] "annotation_session"
-# [20,] "source_batch"
-            )
+nm_fact = c(
+  # [1,] "waggle_run"
+  "condition",
+  # "csv_file", #easier to keep file paths as characters
+  # [4,] "direction_u"
+  # [5,] "direction_v"
+  # [6,] "video_angle_deg"
+  # [7,] "true_north_video_deg"
+  # [8,] "waggle_true_bearing_deg"
+  # [9,] "mean_magnetic_north_deg"
+  # [10,] "true_north_calibration_deg"
+  "calibration_quality_flag",
+  # [12,] "start_x"
+  # [13,] "start_y"
+  # [14,] "calibration_R"
+  # [15,] "declination_deg"
+  # "video_file", #easier to keep file paths as characters
+  # [17,] "day"
+  # [18,] "time"
+  "ID_d",
+  "ID"
+)
+  
 sapply(X = hd[, nm_fact],
        unique
      )
@@ -208,27 +237,26 @@ Reformat variables to factor and numeric. Everything else remains character form
 
 ```{r reformat-variables}
 nm_num = c(
- #  "dancer_id",         
- # "dance_id"          ,
- # "dance_key"         ,
- "waggle_run",        
- # "stimulus"         , 
- # "notes"            , 
- # [7,] "waggle_directions" 
-"start_x"    ,       
-"start_y"     ,      
-# "start_xy"          
-# [11,] "csv_file"          
-# [12,] "time"              
-# [13,] "date"              
-"direction_u",
-"direction_v",
-"video_angle_deg",
-# "start_frame", #removed
- # "video_name"        
-#"annotation_session",#removed
-# [20,] "source_batch"
-"waggle_true_bearing_deg"
+  "waggle_run",
+  # "condition",
+  # "csv_file",
+  "direction_u",
+  "direction_v",
+  "video_angle_deg",
+  "true_north_video_deg",
+  "waggle_true_bearing_deg",
+  "mean_magnetic_north_deg",
+  "true_north_calibration_deg",
+  # "calibration_quality_flag",
+  "start_x",
+  "start_y",
+  "calibration_R",
+  "declination_deg",
+  # "video_file",
+  "day"
+  # "time" # this is character but neither factor nor numeric
+  # "ID_d",
+  # "ID"
 )
 #format factors
 for(nm in nm_fact)
@@ -245,13 +273,15 @@ hd[, nm] = as.numeric(hd[, nm])
 summary(hd)
 ```
 
-There appears to have been an autofill error in stimulus labelling. 
+There appears to have been an autofill error in condition labelling. 
 Rename all unexpected stimuli to `deg_10`, 10° above horizontal.
 *20260818* Has this been fixed? Could skip.
-```{r reformat-stimulus}
+*20260825* Currently no `deg_10` data, will keep in case this is added later.
+
+```{r reformat-condition}
 hd = within(hd,
             {
-              stimulus = sapply(as.character(stimulus),
+              condition = sapply(as.character(condition),
                                 switch,
                                 vertical = "vertical",
                                 horizontal = "horizontal",
@@ -262,12 +292,17 @@ hd = within(hd,
                                 "deg_10")#otherwise always deg_10
             }
             )
-with(hd, unique(stimulus))
+#is there any data for deg_10?
+with(subset(hd, condition %in% "deg-10"),
+     summary(video_angle_deg))
+
+with(hd, unique(condition))
 ```
+
 
 ## Check variable structure
 
-Each dance should have only one time code, one stimulus and one bee.
+Each dance should have only one time code, one condition and one bee.
 
 ```{r check-structure}
 all(
@@ -303,7 +338,7 @@ summary(
   sapply(X = unique(hd$ID_d),
                FUN = function(id){
                  with(subset(hd, ID_d %in% id),
-                          {length(unique(stimulus))} )
+                          {length(unique(condition))} )
                }
   )
 ) == 1
@@ -320,9 +355,127 @@ summary(
 )
 ```
 
-## Add sun location
+# Add sun location
+We can now use the time and date for each dance, combined with the location of 
+the hive and feeder, to work out the relative positions of the hive, sun and feeder. 
+This tells us what direction each dance should indicate for the feeder, as well as 
+any potential effects of sun elevation on accuracy or skylight quality.
 
-### Set up times
+## Check times and dates
+
+```{r check-time-date}
+#firstly, remove any dances that include neither video nor data
+empty_dances = with(subset(hd,
+                           subset = is.na(video_angle_deg) &
+                                     video_file %in% "/"), # result of file.path('','')
+                    unique(ID_d)
+                    )
+hd = subset(hd,
+            subset = !(ID_d %in% empty_dances)
+            )
+
+missing_time = c('na', '')
+
+#how many dances have day missing
+with(subset(hd, is.na(day)),
+     length(unique(ID_d))
+     )
+#very few, which ones?
+print(
+with(subset(hd, is.na(day)),
+     t(t(unique(video_file)))
+     )
+)
+#some of these can be determined from the video name
+hd = within(hd,
+            {
+              #guess the date
+              day_guess = sub(x = dirname(video_file),#just the folder
+                                                pattern = "_new$", #remove "_new"
+                                               replacement = "")
+            }
+            )
+#no guesses are NA
+with(subset(hd, is.na(day_guess)),
+     length(unique(ID_d))
+     )
+#one guess is not a date
+with(subset(hd, !(as.numeric(day_guess) %in% as.numeric(day[!is.na(day)]))),
+     unique(day_guess)
+     )
+
+#replace NAs with guesses
+hd = within(hd,
+            {
+            day = ifelse(test = is.na(day) & #if day is NA
+                           as.numeric(day_guess) %in% #guess is one of the
+                           as.numeric(day[!is.na(day)]),#known dates
+                          yes = day_guess,
+                          no = day) # don't replace unless sure
+            rm('day_guess')#no longer needed
+            }
+            )
+#check after updating
+with(subset(hd, is.na(day)),
+     length(unique(ID_d))
+     )
+
+#how many have time missing
+with(subset(hd, time %in% missing_time),
+     length(unique(ID_d))
+     )
+#how many have either
+with(subset(hd, is.na(day) | time %in% missing_time),
+          length(unique(ID_d))
+     )
+#how many cannot be converted to calendar dates
+hd = within(hd,
+       {
+       date_fail = is.na(
+              as.POSIXct(mapply(FUN = paste, 
+                                 day,
+                                 time), 
+                                      format = "%Y%m%d %H:%M:%OS")#time in YYYY-MM-DD HH:MM:SS
+)
+              }
+              )
+with(subset(hd, date_fail),
+     length(unique(ID_d))
+     )
+
+#Of these how many are missing waggle runs?
+# print(with(subset(hd, subset = date_fail), mean(is.na(video_angle_deg)) ), digits = 2)
+
+#which videos are missing time or date
+print(
+  with(subset(x = hd,
+            subset =  is.na(day) | time %in% missing_time),
+     {t(t(as.character(unique(video_file))))})
+)
+
+#which videos cannot be converted but are not missing time
+print( 
+  with(subset(x = hd,
+            subset =  date_fail & !(time %in% missing_time) ),
+     {
+       t(t(as.character(unique(video_file))))
+       }
+     )
+ )
+
+
+```
+There is one empty dance that can be removed (possibly extra empty rows at end of CSV).
+A total of 4 dances have incomplete time or date, all of which are missing date currently.
+These seem to correspond to 4 videos, for which the date can be guessed from the folder name.
+It will now be possible to calculate sun azimuth for all remaining dances.
+
+
+
+## Set up times
+
+First we need to combine dates in `YYYYMMDD` with times in `HH:MM:SS` to produce a 
+ POSIX/C99 "calendar time" for each. This is then converted to UTC for sun location estimation.
 
 ```{r add-time-code}
 
@@ -339,22 +492,28 @@ hd = within(hd,
               rm("time_code")#now duplicated
             }
 )
+with(hd, summary(utc_time))
 ```
 
+In all cases time or date were available and could be converted, so it will 
+be possible to calculate the sun's azimuth for all of these.
 
 ### Adjust for laptop clock (check this)
 
-Videos recorded on the laptop have time stamps in CET not SAST, so they are one hour behind (South African Summer time is `UCT + 2`, Central European Winter is `UTC + 1`). 
-Adjust them by adding one hour before calculating sun position.
+Videos recorded on the laptop have time stamps in CET not SAST. This means that 
+they are one hour behind, since South African Summer time is `UCT + 2`, while 
+Central European Winter is `UTC + 1`. 
+Adjust them by adding one hour (60 minutes x 60 seconds) before calculating sun position.
+
 ```{r adjust-CET-SAST}
 hd = within(hd,
             {
               sast_time = as.POSIXct(
                 mapply(FUN = switch,
-                                 EXPR = stimulus,
-                                 vertical = sast_time,
-                                 horizontal = sast_time,
-                                 deg_10 = sast_time,  
+                                 EXPR = condition,
+                                 vertical = sast_time, # camcorder
+                                 horizontal = sast_time, # camcorder
+                                 deg_10 = sast_time,  # camcorder
                                  antisolar = sast_time + 60*60, #60 min x 60 seconds
                                  solar = sast_time + 60*60,
                                  zenith = sast_time + 60*60,
@@ -367,10 +526,16 @@ hd = within(hd,
             }
             )
 
+
 ```
 
 
-### Inspect experiment times
+
+
+## Inspect experiment times
+
+Convert these time codes to just time-of-day and plot a histogram to check that 
+they fit with recorded times of experiments.
 
 ```{r inspect-times}
 with(hd,
@@ -381,16 +546,49 @@ with(hd,
           freq = TRUE,
           main = "Recorded dances by time",
           xlab = "Local time",
-          axes = FALSE),
+          axes = FALSE,
+          border = NA),
      )
 axis(side = 1,
      at = 7:19*60*60,
      labels = 7:19)
 axis(side = 2)
+#add lines indicating the approximate expected start and end of each experiment
+abline(v = c(morning_start = 7.50*60*60,
+            morning_end = 9.00*60*60,
+            midday_start = 11.00*60*60,
+            midday_end = 13.00*60*60,
+            afternoon_start = 15.00*60*60,
+            afternoon_end = 16.50*60*60,
+            evening_start = 17.50*60*60,
+            evening_end = 19.00*60*60
+             ),
+       col = c(morning_start = 'darkred',
+            morning_end = 'darkred',
+            midday_start = 'orange',
+            midday_end = 'orange',
+            afternoon_start = 'darkred',
+            afternoon_end = 'darkred',
+            evening_start = 'seagreen',
+            evening_end = 'seagreen'
+             ),
+       lty = c(1,2),
+       lwd = 3
+       )
 ```
 
+Most dances appear during the target windows, with the exception of the late afternoon (16:30–17:30). 
+It is possible that during periods of high activity we continued to record dances between 
+the afternoon and evening experiments, at the transition from medium to low elevations.
 
-### Estimate sun location
+## Estimate sun location
+
+In order to determine the sun's location (azimuth and elevation) we need to combine the time 
+with the geographic location. `GetSaz` is a vectorised wrapper for `oce::sunAngle`, which corrects 
+for refraction, but not the altitude from which the sun is viewed.
+
+The current estimate of hive location is from a combination of Google Maps bookmarks 
+and photograph metadata, cross-references with Google Earth satellite images.
 
 ```{r add-sun}
 # Hive position
@@ -429,7 +627,24 @@ hd = within(hd,
 print(with(hd, sapply(X = list(sun_az, sun_el),FUN =  summary)),
       digits = 2)
 ```
+
+At the extremes we see Northerly azimuths (015°,340°), presumably around  midday,
+while the most common sun azimuths are Westerly ($\approx$270°) in the afternoon and evening. 
+Solar elevations range between -8° (after sunset) and 84° (high noon). Around 25% 
+are at high elevations (>75°).
+
+
 ### Add Feeder angle
+
+To determine the expected dance directions, we need to know the azimuth angle between 
+the sun and the feeder, for which we need the bearing from the hive to the feeder. 
+As for the hive position, the current estimate of feeder position was determined  
+from a combination of Google Maps bookmarks and photograph metadata, 
+cross-referenced with Google Earth satellite images.
+
+`geosphere::bearing` requires coordinates in decimal, with longitude first and then latitude,
+so `Dms2decimal` converts from degrees, minutes and seconds to decimal and reorders 
+the (latitude,longitude) vector.
 
 ```{r add-feeder-angle}
 # Hive position
@@ -456,24 +671,23 @@ print(feeder_bearing, digits = 3)
 feeder_distance = distGeo(hive, feeder)
 print(feeder_distance, digits = 3)
 
-#add feeder azimuth
+#add feeder azimuth relative to sun position
 hd = within(hd, 
             {
             feeder_az = Mod360.180(feeder_bearing - sun_az)
             }
             )
 
-#correct solar videos #20260730 do this with waggle angle instead
-# hd = within(hd,
-#             {
-#               feeder_az = ifelse(stimulus %in%
-#                                  "solar",
-#                                  Mod360.180(feeder_az + 180),
-#                                  feeder_az)
-#             }
-#             )
 print(with(hd, summary(feeder_az)), digits = 3)
+print(with(hd, summary(abs(feeder_az))), digits = 3)
 ```
+
+Based on geographic position alone, we can conclude that the feeder was at 
+a bearing of 068° (approx. East-North-East) from the hive, $\approx$ 330m away. 
+Given the hilly terrain, the ground distance flown may have been slightly further. 
+After subtracting the sun's azimuth, we see that the sun ranged between 
+nearly 180° West of the feeder (presumably sunset) and precisely aligned with the 
+feeder (presumably during the morning).
 
 
 ### Plot sanity checks
@@ -483,7 +697,7 @@ Plot these to get an idea of how they match up.
 ```{r sanity-plot}
 
 par(mfrow = c(1,2))
-with(subset(hd, stimulus %in% c("vertical", "horizontal", "deg10")),
+with(subset(hd, condition %in% c("vertical", "horizontal", "deg10")),
      {
      plot(x = GetToD(sast_time,
                      tz = 'UTC'),
@@ -495,7 +709,7 @@ with(subset(hd, stimulus %in% c("vertical", "horizontal", "deg10")),
           main = 'Camcorder Videos',
           pch = 21,
           col = 'gray50',
-           bg = adjustcolor(sapply(X = stimulus,
+           bg = adjustcolor(sapply(X = condition,
                         FUN = switch,
                         vertical = 'darkred',
                         horizontal = 'darkgreen',
@@ -509,7 +723,7 @@ with(subset(hd, stimulus %in% c("vertical", "horizontal", "deg10")),
             lty = 3)
      }
      )
-with(subset(hd, stimulus %in% c("solar", "antisolar")),
+with(subset(hd, condition %in% c("solar", "antisolar")),
      {
      plot(x = GetToD(sast_time,
                      tz = 'UTC'),
@@ -521,7 +735,7 @@ with(subset(hd, stimulus %in% c("solar", "antisolar")),
           main = 'USB Camera Videos',
           pch = 21,
           col = 'gray50',
-           bg = adjustcolor(sapply(X = stimulus,
+           bg = adjustcolor(sapply(X = condition,
                         FUN = switch,
                         solar = 'blue4',
                         antisolar = 'cyan4',
@@ -581,7 +795,7 @@ This has not been calculated yet for this data.
 There is a true North for the horizontal condition
 
 ```{r check-calibration}
-with(subset(hd, stimulus %in% "horizontal"),
+with(subset(hd, condition %in% "horizontal"),
      {
        print(
      summary(true_north_video_deg) 
@@ -623,7 +837,7 @@ hd = within(hd,
             {
               # bearing = deg(atan2(y = direction_v, x = direction_u) + pi/2) %% 360
               bearing = mapply(FUN = switch,
-                               EXPR = stimulus,
+                               EXPR = condition,
                                horizontal = waggle_true_bearing_deg, #corrected with compass
                                deg10 = waggle_true_bearing_deg,
                                vertical =  video_angle_deg, #aligned by default
@@ -650,16 +864,16 @@ with(hd, sapply(list(bearing, signed_angle, angle), FUN = summary))
 
 For example we can look at the dances for Blue-22 recorded on 2025-01-28 at 
 07:57:05, 08:10:00, 08:29:00, 08:34:00 & 10:44:09—each of which is the first for 
-one of the stimulus conditions.
+one of the conditions.
 Sun azimuth (possibly incorrect) is shown as an orange line.
 
 ```{r example-subset}
 subs_20250128 = subset(hd, day %in% "20250128")
 #find first dance for each condition on 2025.01.28
 example_lst = list()
-for(stim in unique(hd$stimulus))
+for(stim in unique(hd$condition))
 {
-example_lst[[stim]] = with(subset(subs_20250128, stimulus %in% stim),
+example_lst[[stim]] = with(subset(subs_20250128, condition %in% stim),
                            unique(ID_d)[1])
 }
 #inspect
@@ -670,29 +884,29 @@ example_subs = subset(x = hd,
                       )
 
 par(mfrow = c(2,2), mar = c(0,0,0,0))
-    # with(subset(example_subs,
-    #             subset = stimulus %in% 'vertical'),
-    #      {
-    #   PCfun(angles = bearing,
-    #         col = 'darkgreen',
-    #         shrink = 1.5,
-    #         title = paste(unique(time), unique(stimulus)))
-    #   lines(
-    #     x = c(0, sin(rad(feeder_az))),
-    #     y = c(0, cos(rad(feeder_az))),
-    #     col = adjustcolor('orange', alpha.f = 0.5),
-    #     lwd = 2
-    #   )
-    #      }
-    # )
+with(subset(example_subs,
+            subset = condition %in% 'vertical'),
+     {
+  PCfun(angles = bearing,
+        col = 'darkgreen',
+        shrink = 1.5,
+        title = paste(unique(time), unique(condition)))
+  lines(
+    x = c(0, sin(rad(feeder_az))),
+    y = c(0, cos(rad(feeder_az))),
+    col = adjustcolor('orange', alpha.f = 0.5),
+    lwd = 2
+  )
+     }
+)
 
 with(subset(example_subs,
-            subset = stimulus %in% 'horizontal'),
+            subset = condition %in% 'horizontal'),
      {
 PCfun(angles = bearing,
       col = 'darkred',
       shrink = 1.5,
-      title = paste(unique(time), unique(stimulus)))
+      title = paste(unique(time), unique(condition)))
          lines(
     x = c(0, sin(rad(feeder_az))),
     y = c(0, cos(rad(feeder_az))),
@@ -702,12 +916,12 @@ PCfun(angles = bearing,
      }
 )
 with(subset(example_subs,
-            subset = stimulus %in% 'antisolar'),
+            subset = condition %in% 'antisolar'),
      {
 PCfun(angles = bearing,
       col = 'cyan4',
       shrink = 1.5,
-      title = paste(unique(time), unique(stimulus)))
+      title = paste(unique(time), unique(condition)))
          lines(
     x = c(0, sin(rad(feeder_az))),
     y = c(0, cos(rad(feeder_az))),
@@ -717,12 +931,12 @@ PCfun(angles = bearing,
      }
 )
 with(subset(example_subs,
-            subset = stimulus %in% 'solar'),
+            subset = condition %in% 'solar'),
      {
 PCfun(angles = bearing,
       col = 'blue4',
       shrink = 1.5,
-      title = paste(unique(time), unique(stimulus)))
+      title = paste(unique(time), unique(condition)))
          lines(
     x = c(0, sin(rad(feeder_az+180))),
     y = c(0, cos(rad(feeder_az+180))),
@@ -748,19 +962,19 @@ hd = within(hd,
             )
 
 print(
-  with(subset(hd, stimulus %in% 'vertical'), summary(abs_feeder_angle_deg)),
+  with(subset(hd, condition %in% 'vertical'), summary(abs_feeder_angle_deg)),
   digits = 2
 )
 print(
-  with(subset(hd, stimulus %in% 'horizontal'), summary(abs_feeder_angle_deg)),
+  with(subset(hd, condition %in% 'horizontal'), summary(abs_feeder_angle_deg)),
   digits = 1
 )
 print(
-  with(subset(hd, stimulus %in% 'antisolar'), summary(abs_feeder_angle_deg)),
+  with(subset(hd, condition %in% 'antisolar'), summary(abs_feeder_angle_deg)),
   digits = 1
 )
 print(
-  with(subset(hd, stimulus %in% 'solar'), summary(abs_feeder_angle_deg)),
+  with(subset(hd, condition %in% 'solar'), summary(abs_feeder_angle_deg)),
   digits = 1
 )
 
@@ -774,41 +988,41 @@ example_subs = subset(x = hd,
                       )
 
 par(mfrow = c(2,2), mar = c(0,0,0,0))
-    # with(subset(example_subs,
-    #             subset = stimulus %in% 'vertical'),
-    #      {
-    #   PCfun(angles = deg(feeder_angle),
-    #         col = 'darkgreen',
-    #         shrink = 1.5,
-    #         title = paste(unique(time), unique(stimulus)))
-    #      }
-    # )
+    with(subset(example_subs,
+                subset = condition %in% 'vertical'),
+         {
+      PCfun(angles = deg(feeder_angle),
+            col = 'darkgreen',
+            shrink = 1.5,
+            title = paste(unique(time), unique(condition)))
+         }
+    )
 
 with(subset(example_subs,
-            subset = stimulus %in% 'horizontal'),
+            subset = condition %in% 'horizontal'),
      {
 PCfun(angles = deg(feeder_angle),
       col = 'darkred',
       shrink = 1.5,
-      title = paste(unique(time), unique(stimulus)))
+      title = paste(unique(time), unique(condition)))
      }
 )
 with(subset(example_subs,
-            subset = stimulus %in% 'antisolar'),
+            subset = condition %in% 'antisolar'),
      {
 PCfun(angles = deg(feeder_angle),
       col = 'cyan4',
       shrink = 1.5,
-      title = paste(unique(time), unique(stimulus)))
+      title = paste(unique(time), unique(condition)))
      }
 )
 with(subset(example_subs,
-            subset = stimulus %in% 'solar'),
+            subset = condition %in% 'solar'),
      {
 PCfun(angles = deg(feeder_angle),
       col = 'blue4',
       shrink = 1.5,
-      title = paste(unique(time), unique(stimulus)))
+      title = paste(unique(time), unique(condition)))
      }
 )
 ```
