@@ -54,8 +54,8 @@ Load the raw data exported from Excel to `csv`.
 ```{r load-the-data}
 path_file = file.path("0Data",
                       c(
-                        "H_calib.csv",#horizontal and dome calibrated dances 
-                        "V_uncalib.csv"#vertical dances (not yet calibrated0)
+                        "V_uncalib.csv",#vertical dances (not yet calibrated0)
+                        "H_calib.csv"#horizontal and dome calibrated dances 
                         )
 )
 if(any(!file.exists(path_file)))
@@ -99,7 +99,7 @@ Check that the last row contains data.
 print(hd[dim(hd)[1],])
 ```
 
-Last row contains at least some data, placeholder?
+Last row contains at some data, no extra empty rows.
 
 <details>
 
@@ -126,7 +126,7 @@ these can be simplified to just file name and folder (date recorded).
 There are two kinds of grouping factor, firstly the identity of the individual bee,
 simplified here to `ID`, and within each individual bee their individual dances,
 specified here as `ID_d`.
-The date is now in `YYYYDDMM` format, this will be reformatted later.
+The date is now in `YYYYMMDD` format, this will be reformatted later.
 
 
 ```{r rename-variables}
@@ -173,6 +173,8 @@ rm_lst = c(
   # [39,] "calibration_R"
   # [40,] "declination_deg"
 )
+
+#rename and remove unused or renamed
 hd = within(hd, {
   ID = paste0(bee_id) # individual identifier
   ID_d = paste0(dance_id, "_", time_dance, "_", date) # dance identifier
@@ -205,7 +207,7 @@ Inspect the different labels to each to check these are informative.
 nm_fact = c(
   # [1,] "waggle_run"
   "condition",
-  # "csv_file", #easier to keep file paths as characters
+  # "csv_file", #easier to handle file paths as characters
   # [4,] "direction_u"
   # [5,] "direction_v"
   # [6,] "video_angle_deg"
@@ -218,7 +220,7 @@ nm_fact = c(
   # [13,] "start_y"
   # [14,] "calibration_R"
   # [15,] "declination_deg"
-  # "video_file", #easier to keep file paths as characters
+  # "video_file", #easier to handle file paths as characters
   # [17,] "day"
   # [18,] "time"
   "ID_d",
@@ -293,7 +295,7 @@ hd = within(hd,
             }
             )
 #is there any data for deg_10?
-with(subset(hd, condition %in% "deg-10"),
+with(subset(hd, condition %in% "deg_10"),
      summary(video_angle_deg))
 
 with(hd, unique(condition))
@@ -305,8 +307,9 @@ with(hd, unique(condition))
 Each dance should have only one time code, one condition and one bee.
 
 ```{r check-structure}
-all(
 #individuals per dance
+if(
+all(
 summary(
   sapply(X = unique(hd$ID_d),
                FUN = function(id){
@@ -314,8 +317,14 @@ summary(
                           {length(unique(ID))} )
                }
   )
-) == 1,
+) == 1)
+){print("Each dance has only one dancer")}else
+{message("Some dances do not have one dancer\n")}
+
+
 #times per dance
+if(
+all(
 summary(
   sapply(X = unique(hd$ID_d),
                FUN = function(id){
@@ -323,17 +332,27 @@ summary(
                           {length(unique(time))} )
                }
   )
-) == 1,
+) == 1)
+){print("Each dance has only one time stamp")}else
+{message("Some dances do not have one time stamp\n")}
+
 #days per dance
+if(
+  all(
 summary(
   sapply(X = unique(hd$ID_d),
                FUN = function(id){
                  with(subset(hd, ID_d %in% id),
-                          {length(unique(time))} )
+                          {length(unique(day))} )
                }
   )
-) == 1,
+) == 1)
+){print("Each dance has only one day")}else
+{message("Some dances do not have one day\n")}
+
 #stimuli per dance
+if(
+  all(
 summary(
   sapply(X = unique(hd$ID_d),
                FUN = function(id){
@@ -341,18 +360,25 @@ summary(
                           {length(unique(condition))} )
                }
   )
-) == 1
-)
+) == 1)
+){print("Each dance has only one condition")}else
+{message("Some dances do not have one condition\n")}
+
 
 #how many waggle runs per dance?
-summary(
-  sapply(X = unique(hd$ID_d),
+runs_per_dance =  sapply(X = unique(hd$ID_d),
                FUN = function(id){
                  with(subset(hd, ID_d %in% id),
                           {max(waggle_run)} )
                }
   )
-)
+
+hist(runs_per_dance,
+     breaks = max(runs_per_dance),
+     main = paste('Maximum dance length =', 
+                  max(runs_per_dance), 'waggle runs'),
+     xlab = 'waggle runs',
+     border = NA)
 ```
 
 # Add sun location
@@ -370,7 +396,7 @@ empty_dances = with(subset(hd,
                                      video_file %in% "/"), # result of file.path('','')
                     unique(ID_d)
                     )
-if(empty_dances)
+if(length(empty_dances)>0)
 {
   print("removing empty dances:")
   print(as.character(t(t(empty_dances))))
@@ -382,9 +408,14 @@ hd = subset(hd,
 missing_time = c('na', '')
 
 #how many dances have day missing
+if(any(is.na(hd$day)))
+{
+  message(paste(
 with(subset(hd, is.na(day)),
      length(unique(ID_d))
-     )
+     ),
+"dances are missing the date")
+)
 #very few, which ones?
 print(
 with(subset(hd, is.na(day)),
@@ -400,14 +431,23 @@ hd = within(hd,
                                                replacement = "")
             }
             )
+
 #no guesses are NA
+message(paste(
 with(subset(hd, is.na(day_guess)),
      length(unique(ID_d))
-     )
+     ),
+"dance dates could not be guessed from file name")
+)
+
 #one guess is not a date
+message(paste("guesses not found in list of dates:\n",
 with(subset(hd, !(as.numeric(day_guess) %in% as.numeric(day[!is.na(day)]))),
      unique(day_guess)
      )
+)
+)
+
 
 #replace NAs with guesses
 hd = within(hd,
@@ -420,19 +460,29 @@ hd = within(hd,
             rm('day_guess')#no longer needed
             }
             )
+
+message(paste(
 #check after updating
 with(subset(hd, is.na(day)),
      length(unique(ID_d))
-     )
+     ),
+"unidentified dates after guessing"
+)
+)
+
+}
 
 #how many have time missing
+if(any(is.na(hd$time %in% missing_time)))
+{
+    message(paste(
 with(subset(hd, time %in% missing_time),
      length(unique(ID_d))
-     )
-#how many have either
-with(subset(hd, is.na(day) | time %in% missing_time),
-          length(unique(ID_d))
-     )
+     ),
+"dances are missing the date")
+)
+}
+
 #how many cannot be converted to calendar dates
 hd = within(hd,
        {
@@ -444,22 +494,29 @@ hd = within(hd,
 )
               }
               )
-with(subset(hd, date_fail),
-     length(unique(ID_d))
-     )
 
 #Of these how many are missing waggle runs?
 # print(with(subset(hd, subset = date_fail), mean(is.na(video_angle_deg)) ), digits = 2)
 
+#if 
+if(any(hd$date_fail))
+{
+message(paste(
+with(subset(hd, date_fail),
+     length(unique(ID_d))
+     ),
+"dances _could not_ be assigned a calendar date"
+))
 #which videos are missing time or date
-print(
+message(paste("calendar dates not assigned for:\n",
   with(subset(x = hd,
             subset =  is.na(day) | time %in% missing_time),
      {t(t(as.character(unique(video_file))))})
 )
+)
 
 #which videos cannot be converted but are not missing time
-print( 
+message(paste("time found but not calendar dates for:\n",
   with(subset(x = hd,
             subset =  date_fail & !(time %in% missing_time) ),
      {
@@ -467,13 +524,12 @@ print(
        }
      )
  )
-
+)
+}else
+{print("all dances assigned a calendar date")}
 
 ```
-There is one empty dance that can be removed (possibly extra empty rows at end of CSV).
-A total of 4 dances have incomplete time or date, all of which are missing date currently.
-These seem to correspond to 4 videos, for which the date can be guessed from the folder name.
-It will now be possible to calculate sun azimuth for all remaining dances.
+All dances can be assigned a calendar date without the need for guessing.
 
 
 
@@ -506,31 +562,124 @@ be possible to calculate the sun's azimuth for all of these.
 ### Adjust for laptop clock (check this)
 
 Videos recorded on the laptop have time stamps in CET not SAST. This means that 
-they are one hour behind, since South African Summer time is `UCT + 2`, while 
-Central European Winter is `UTC + 1`. 
-Adjust them by adding one hour (60 minutes x 60 seconds) before calculating sun position.
+they are one hour behind, since South African Summer time is `UCT + 2`, 
+while Central European Winter is `UTC + 1`. 
+Before calculating sun position, we should check that all times have been adjusted 
+by adding one hour (60 minutes x 60 seconds). 
+Below we estimate the correct time by extracting the time stamp from the video name 
+and converting to SAST. This is then compared with the time generated from our notes,
+with a margin of error `expected_diff`. This is currently set to 5 minutes, 
+which during the fastest rate of sun azimuth change of $\approx$2°/minute 
+would result in a maximum sun azimuth error of 10°.
 
-```{r adjust-CET-SAST}
+```{r check-CET-SAST}
+#upper limit of 5 minutes (x 60sec) between dance time and video saving
+expected_diff = 5*60
+
+extract_timestamp = function(string) {
+  # Match a timestamp in the form: YYYY-MM-DD HH-MM-SS
+  # Example: "2025-01-20 14-25-03"
+  m = regexpr(
+    pattern = "\\d{4}-\\d{2}-\\d{2} \\d{2}-\\d{2}-\\d{2}",
+    text = as.character(string)
+  )
+
+  # Prepare output vector with NA values by default
+  # This ensures every input gets a corresponding output element
+  out = rep(NA_character_, length(string))
+
+  # Identify which entries actually contain a matching timestamp
+  ok = m > 0
+
+  # Extract the matched substring only for entries with a valid match
+  # substr() takes: start position, end position
+  out[ok] = substr(
+    string[ok],
+    m[ok],
+    m[ok] + attr(m, "match.length")[ok] - 1
+  )
+
+  # Return extracted timestamps, with NA for entries that did not match
+  out
+}
+
+calc_expected_time =  function(cond,
+                               ts,
+                               sast)
+  {
+    switch(EXPR = cond, #by condition label
+      vertical = sast, #these video names don't have a timestamp
+      horizontal = sast,#these video names don't have a timestamp
+      deg_10 = sast,#these video names don't have a timestamp
+      antisolar = ts + 60 * 60, #these time stamps are in CET
+      solar = ts + 60 * 60, #these time stamps are in CET
+      zenith = ts + 60 * 60, #these time stamps are in CET
+      sast # by default assume correct
+    )
+  }
+
+#try to generate the expected time
 hd = within(hd,
             {
-              sast_time = as.POSIXct(
-                mapply(FUN = switch,
-                                 EXPR = condition,
-                                 vertical = sast_time, # camcorder
-                                 horizontal = sast_time, # camcorder
-                                 deg_10 = sast_time,  # camcorder
-                                 antisolar = sast_time + 60*60, #60 min x 60 seconds
-                                 solar = sast_time + 60*60,
-                                 zenith = sast_time + 60*60,
-                                 sast_time
-                                 ),
-                tz = "Africa/Johannesburg", 
-                format = "%Y-%m-%d %H:%M:%OS")#South African Standard time
-              #recalculate UTC time
-              utc_time =  as.POSIXct(sast_time, tz = "UTC")#UTC time
+             # Try to read the original video timestamp from video_file first, then csv_file, then ID_d
+            video_timestamp_txt = extract_timestamp(video_file)
+            video_timestamp_txt = ifelse(test = is.na(video_timestamp_txt),
+                                         yes = extract_timestamp(csv_file),
+                                         no = video_timestamp_txt
+                                         )
+            video_timestamp_txt = ifelse(test = is.na(video_timestamp_txt),
+                                         yes = extract_timestamp(ID_d), #constructed in the same way as sast_time?
+                                         no = video_timestamp_txt
+                                         )
+            video_timestamp = as.POSIXct(
+                                        video_timestamp_txt,
+                                        format = "%Y-%m-%d %H-%M-%S",
+                                        tz = "Africa/Johannesburg"
+                                        )
+            #for all videos recorded on the laptop generate an estimated time, others use SAST time generated above
+            expected_time = mapply(FUN = calc_expected_time,
+                                   cond = condition, # experimental condition (determined laptop or camcorder)
+                                   ts = video_timestamp, # time from video
+                                   sast = sast_time, # time from notes
+                                   SIMPLIFY = TRUE)
+            #calculate difference between time calculated from notes and time from video
+            oe_time_diff = as.numeric(sast_time - expected_time) # difference in seconds
+            time_error = abs(oe_time_diff) > expected_diff # is difference larger than expected (logical)
             }
+            
             )
 
+#notify the user
+if (any(hd$time_error)) {
+  with(subset(hd, time_error),
+       {
+         message(paste('Time error found for:\n',
+        unique(video_timestamp)
+         ))
+       }
+  )
+}else
+  {
+  print("All timestamps are close to observed time.")
+  print("Differences in minutes (estimated time - notes)")
+  with(subset(hd, condition %in% c("solar", "antisolar", "zenith")),
+       {
+         print(summary(oe_time_diff/60),
+               digits = 2)}
+       )
+  #clean up new variables
+  hd = within(hd,
+              {
+                rm(list = c('video_timestamp_txt',
+                            'video_timestamp',
+                            # 'expected_time' #keep in case this is needed later
+                            'oe_time_diff',
+                            'time_error'
+                            )
+                )
+              }
+              )
+}
 
 ```
 
@@ -543,6 +692,18 @@ Convert these time codes to just time-of-day and plot a histogram to check that
 they fit with recorded times of experiments.
 
 ```{r inspect-times}
+#assign experiment times
+morning_start = 7.50*60*60
+morning_end = 9.00*60*60
+midday_start = 11.00*60*60
+midday_end = 13.00*60*60
+afternoon_start = 15.00*60*60
+afternoon_end = 16.50*60*60
+evening_start = 17.50*60*60
+evening_end = 19.00*60*60
+
+
+
 with(hd,
      hist(x = GetToD(sast_time,
                      tz = 'UTC'),
@@ -559,14 +720,14 @@ axis(side = 1,
      labels = 7:19)
 axis(side = 2)
 #add lines indicating the approximate expected start and end of each experiment
-abline(v = c(morning_start = 7.50*60*60,
-            morning_end = 9.00*60*60,
-            midday_start = 11.00*60*60,
-            midday_end = 13.00*60*60,
-            afternoon_start = 15.00*60*60,
-            afternoon_end = 16.50*60*60,
-            evening_start = 17.50*60*60,
-            evening_end = 19.00*60*60
+abline(v = c(morning_start,
+            morning_end,
+            midday_start,
+            midday_end ,
+            afternoon_start,
+            afternoon_end,
+            evening_start,
+            evening_end
              ),
        col = c(morning_start = 'darkred',
             morning_end = 'darkred',
@@ -633,10 +794,73 @@ print(with(hd, sapply(X = list(sun_az, sun_el),FUN =  summary)),
       digits = 2)
 ```
 
-At the extremes we see Northerly azimuths (015°,340°), presumably around  midday,
+At the extremes we see Northerly azimuths (005°,354°), presumably around  midday,
 while the most common sun azimuths are Westerly ($\approx$270°) in the afternoon and evening. 
-Solar elevations range between -8° (after sunset) and 84° (high noon). Around 25% 
+Solar elevations range between -1.7° (after sunset) and 84° (high noon). Around 25% 
 are at high elevations (>75°).
+
+```{r plot-sun-azimuth}
+
+par(mfrow = c(2,2),
+    cex = 1.0,
+    mar = c(0,0,0,0))
+par(pty = 's')
+with(subset(hd,
+            GetToD(sast_time,
+                     tz = 'UTC') > morning_start &
+            GetToD(sast_time,
+                     tz = 'UTC') < morning_end),
+     {
+PCfun(sun_az,
+      col = 'darkred',
+      shrink = sqrt(length(sun_az)),
+      title = "Morning")
+     }
+)
+with(subset(hd,
+            GetToD(sast_time,
+                     tz = 'UTC') > midday_start &
+            GetToD(sast_time,
+                     tz = 'UTC') < midday_end),
+     {
+PCfun(sun_az,
+      col = 'orange',
+      shrink = sqrt(length(sun_az)),
+      title = "Midday")
+     }
+)
+
+with(subset(hd,
+            GetToD(sast_time,
+                     tz = 'UTC') > afternoon_start &
+            GetToD(sast_time,
+                     tz = 'UTC') < afternoon_end),
+     {
+PCfun(sun_az,
+      col = 'darkred',
+      shrink = sqrt(length(sun_az)),
+      title = "Afternoon")
+     }
+)
+
+with(subset(hd,
+            GetToD(sast_time,
+                     tz = 'UTC') > evening_start &
+            GetToD(sast_time,
+                     tz = 'UTC') < evening_end),
+     {
+PCfun(sun_az,
+      col = 'darkgreen',
+      shrink = sqrt(length(sun_az)),
+      title = "Evening")
+     }
+)
+mtext(text = "Sun Azimuths",
+      outer = TRUE,
+      side = 3,
+      line = -3)
+```
+
 
 
 ### Add Feeder angle
@@ -728,6 +952,31 @@ with(subset(hd, condition %in% c("vertical", "horizontal", "deg10")),
             lty = 3)
      }
      )
+
+#add lines indicating the approximate expected start and end of each experiment
+abline(v = c(morning_start,
+            morning_end,
+            midday_start,
+            midday_end,
+            afternoon_start,
+            afternoon_end,
+            evening_start,
+            evening_end
+             ),
+       col = c(morning_start = 'darkred',
+            morning_end = 'darkred',
+            midday_start = 'orange',
+            midday_end = 'orange',
+            afternoon_start = 'darkred',
+            afternoon_end = 'darkred',
+            evening_start = 'seagreen',
+            evening_end = 'seagreen'
+             ),
+       lty = c(1,2),
+       lwd = 3
+       )
+
+
 with(subset(hd, condition %in% c("solar", "antisolar")),
      {
      plot(x = GetToD(sast_time,
@@ -754,10 +1003,35 @@ with(subset(hd, condition %in% c("solar", "antisolar")),
      }
      )
 
+
+#add lines indicating the approximate expected start and end of each experiment
+abline(v = c(morning_start,
+            morning_end,
+            midday_start,
+            midday_end,
+            afternoon_start,
+            afternoon_end,
+            evening_start,
+            evening_end
+             ),
+       col = c(morning_start = 'darkred',
+            morning_end = 'darkred',
+            midday_start = 'orange',
+            midday_end = 'orange',
+            afternoon_start = 'darkred',
+            afternoon_end = 'darkred',
+            evening_start = 'seagreen',
+            evening_end = 'seagreen'
+             ),
+       lty = c(1,2),
+       lwd = 3
+       )
+
 ```
 
 # Format angles
 
+**TODO** comment this
 ```{r investigate-angles}
 #check angle format
 
@@ -798,6 +1072,7 @@ hd = within(hd,
 `waggle_true_bearing` should be the direction relative to North.
 This has not been calculated yet for this data.
 There is a true North for the horizontal condition
+**TODO** comment this
 
 ```{r check-calibration}
 with(subset(hd, condition %in% "horizontal"),
@@ -832,7 +1107,7 @@ with(subset(hd, condition %in% "horizontal"),
 
 ```
 
-
+**TODO** comment this
 
 ```{r format-angles}
 #assign angles to numeric
@@ -955,6 +1230,8 @@ PCfun(angles = bearing,
 
 
 # Calculate dance offset from feeder
+
+**TODO** comment this
 ```{r feeder-angle}
 #assign angles to numeric
 
@@ -984,7 +1261,10 @@ print(
 )
 
 ```
+
+
 ### Plot example feeder angles
+**TODO** comment this
 
 ```{r feeder-angle-examples}
 #update the subset
