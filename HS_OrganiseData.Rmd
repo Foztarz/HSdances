@@ -28,6 +28,7 @@ editor_options:
 - Export +
 - Adjust times for dome videos +
 - Incorporate calibrated dances +
+- Map out feeder and hive positions
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
