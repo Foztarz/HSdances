@@ -1713,37 +1713,38 @@ data quality, since those checks have now been performed (or can be added) above
 # names(hd)
 
 rm_lst =  c(
-  #  "waggle_run",
-  # [2,] "condition",
-  # [3,] "csv_file",
+  # "waggle_run",
+  # "condition",
+  # "csv_file",
   "direction_u",
   "direction_v",
   "true_north_video_deg",
   "waggle_true_bearing_deg",
   "mean_magnetic_north_deg",
   "true_north_calibration_deg",
-  # [10,] "calibration_quality_flag"
+  # "calibration_quality_flag",
   "start_x",
   "start_y",
-  # [13,] "calibration_R"
+  # "calibration_R",
   "declination_deg",
-  # [15,] "video_file"
-  # [16,] "day"
-  # [17,] "time"
-  # [18,] "ID_d"
-  # [19,] "ID"
+  # "video_file",
+  # "day",
+  # "time",
+  # "ID_d",
+  # "ID",
   "date_fail",
   "utc_time",
-  # [22,] "sast_time"
+  # "sast_time",
   "expected_time",
-  # [24,] "sun_az"
-  # [25,] "sun_el"
-  # [26,] "feeder_az"
-  # [27,] "angle"
-  # [28,] "signed_angle"
-  # [29,] "bearing"
+  # "sun_az",
+  # "sun_el",
+  # "feeder_az",
+  # "angle",
+  # "signed_angle",
+  # "bearing",
+  # "dance_sun_angle",
   "abs_feeder_angle_deg"
-  # [31,] "feeder_angle"
+  # "feeder_angle"
 )
 
 hd = within(hd,
