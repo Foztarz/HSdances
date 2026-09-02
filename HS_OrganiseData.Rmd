@@ -28,6 +28,7 @@ editor_options:
 - Export +
 - Adjust times for dome videos +
 - Incorporate calibrated dances +
+- Calculate dance - sun angle before feeder angle
 - Map out feeder and hive positions
 
 ```{r setup, include=FALSE}
@@ -568,7 +569,7 @@ by adding one hour (60 minutes x 60 seconds).
 Below we estimate the correct time by extracting the time stamp from the video name 
 and converting to SAST. This is then compared with the time generated from our notes,
 with a margin of error `expected_diff`. This is currently set to 5 minutes, 
-which during the fastest rate of sun azimuth change of $\approx$2°/minute 
+which during the fastest rate of sun azimuth change of ≈2°/minute 
 would result in a maximum sun azimuth error of 10°.
 
 ```{r check-CET-SAST}
@@ -800,7 +801,7 @@ print(with(hd, sapply(X = list(sun_az, sun_el),FUN =  summary)),
 ```
 
 At the extremes we see Northerly azimuths (005°,354°), presumably around  midday,
-while the most common sun azimuths are Westerly ($\approx$270°) in the afternoon and evening. 
+while the most common sun azimuths are Westerly (≈270°) in the afternoon and evening. 
 Solar elevations range between -1.7° (after sunset) and 84° (high noon). Around 25% 
 are at high elevations (>75°).
 
@@ -956,7 +957,7 @@ print(with(hd, summary(abs(feeder_az))), digits = 3)
 ```
 
 Based on geographic position alone, we can conclude that the feeder was at 
-a bearing of 068° (approx. East-North-East) from the hive, $\approx$ 330m away. 
+a bearing of 068° (approx. East-North-East) from the hive, ≈ 330m away. 
 Given the hilly terrain, the ground distance flown may have been slightly further. 
 After subtracting the sun's azimuth, we see that the sun ranged between 
 nearly 180° West of the feeder (presumably sunset) and precisely aligned with the 
@@ -1178,14 +1179,15 @@ hd = within(hd,
               # bearing = deg(atan2(y = direction_v, x = direction_u) + pi/2) %% 360
               bearing = mapply(FUN = switch,
                                EXPR = condition,
-                               vertical =  video_angle_deg, #aligned by default
+                               vertical =  video_angle_deg + sun_az, #aligned by default
                                horizontal = waggle_true_bearing_deg, #corrected with compass
                                deg10 = waggle_true_bearing_deg,
                                antisolar = waggle_true_bearing_deg, #now calibrated
                                solar = waggle_true_bearing_deg, #now calibrated
                                zenith = waggle_true_bearing_deg, #now calibrated
-                               video_angle_deg
+                               video_angle_deg + sun_az
                               )
+              dance_sun_angle = Mod360.180(bearing - sun_az)# angle between dance and sun
               signed_angle = Mod360.180(bearing)  # bearing between -180 and 180
               angle = rad(signed_angle)# circular format is not needed for organising
                                
@@ -1205,10 +1207,9 @@ digits = 2
 
 ### Plot an example dance
 
-For example we can look at the dances for Blue-22 recorded on 2025-01-28 at 
-07:57:05, 08:10:00, 08:29:00, 08:34:00 & 10:44:09—each of which is the first for 
-one of the conditions.
-Feeder azimuth (possibly incorrect) is shown as an brown line.
+For example we can look at the first dances for recorded on each day for each 
+one of the conditions. Here we plot the estimated dance relative to the sun (at 0°).
+Feeder azimuth relative to the sun is shown as an brown line.
 
 ```{r example-subset}
 for(example_day in unique(hd$day))
@@ -1237,7 +1238,7 @@ if(with(example_subs, any(condition %in% "vertical")))
   with(subset(example_subs,
             subset = condition %in% 'vertical'),
      {
-  PCfun(angles = bearing,
+  PCfun(angles = dance_sun_angle,
         col = 'darkgreen',
         shrink = 1.5,
         title = paste(unique(ID), unique(time), unique(condition)))
@@ -1268,7 +1269,7 @@ if(with(example_subs, any(condition %in% "horizontal")))
 with(subset(example_subs,
             subset = condition %in% 'horizontal'),
      {
-PCfun(angles = bearing,
+PCfun(angles = dance_sun_angle,
       col = 'darkred',
       shrink = 1.5,
       title = paste(unique(ID), unique(time), unique(condition)))
@@ -1300,7 +1301,7 @@ if(with(example_subs, any(condition %in% "deg_10")))
 with(subset(example_subs,
             subset = condition %in% 'deg_10'),
      {
-PCfun(angles = bearing,
+PCfun(angles = dance_sun_angle,
       col = 'seagreen',
       shrink = 1.5,
       title = paste(unique(ID), unique(time), unique(condition)))
@@ -1330,7 +1331,7 @@ if(with(example_subs, any(condition %in% "antisolar")))
 with(subset(example_subs,
             subset = condition %in% 'antisolar'),
      {
-PCfun(angles = bearing,
+PCfun(angles = dance_sun_angle,
       col = 'cyan4',
       shrink = 1.5,
       title = paste(unique(ID), unique(time), unique(condition)))
@@ -1363,7 +1364,7 @@ if(with(example_subs, any(condition %in% "solar")))
 with(subset(example_subs,
             subset = condition %in% 'solar'),
      {
-PCfun(angles = bearing,
+PCfun(angles = dance_sun_angle,
       col = 'blue4',
       shrink = 1.5,
       title = paste(unique(ID), unique(time), unique(condition)))
@@ -1395,7 +1396,7 @@ if(with(example_subs, any(condition %in% "zenith")))
 with(subset(example_subs,
             subset = condition %in% 'zenith'),
      {
-PCfun(angles = bearing,
+PCfun(angles = dance_sun_angle,
       col = 'skyblue3',
       shrink = 1.5,
       title = paste(unique(ID), unique(time), unique(condition)))
@@ -1449,7 +1450,7 @@ measured relative to sun position or the vertical .
 
 hd = within(hd, 
             {
-              feeder_angle = mod_circular(rad(bearing - feeder_az))# angle between dance and expected dance
+              feeder_angle = mod_circular(rad(dance_sun_angle - feeder_az))# angle between dance and expected dance
               abs_feeder_angle_deg = deg(abs(as.numeric(feeder_angle)))# absolute angle in numeric format
             }
             )
@@ -1464,10 +1465,11 @@ print(
 }
 ```
 
-On average, vertical dances are $\approx$20°–25° from the expected direction, 
-whereas for the other conditions divergences are much larger. 
-For zenithal skylight in particular, there appear to be more dances opposite 
-the feeder than towards it.
+On average, vertical dances are ≈20°–25° from the expected direction. 
+Horizontal dances are less accurate, ≈30°–50° from the expected direction.
+For the other conditions divergences are much larger. 
+For solar skylight in particular, there appear to be more dances opposite 
+the feeder than towards it (half of dances >140° from feeder).
 
 ### Plot example feeder angles
 
