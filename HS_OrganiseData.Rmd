@@ -28,7 +28,6 @@ editor_options:
 - Export +
 - Adjust times for dome videos +
 - Incorporate calibrated dances +
-- Remove duplicates
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -548,7 +547,6 @@ hd = within(hd,
               sast_time =  as.POSIXct(time_code, 
                                       tz = "Africa/Johannesburg", 
                                       format = "%Y%m%d %H:%M:%OS")#South African Standard time
-                                      # format = "%Y-%m-%d %H:%M:%OS")#South African Standard time
               utc_time =  as.POSIXct(sast_time, tz = "UTC")#UTC time
               rm("time_code")#now duplicated
             }
@@ -702,6 +700,28 @@ afternoon_end = 16.50*60*60
 evening_start = 17.50*60*60
 evening_end = 19.00*60*60
 
+exper_times = c(
+  morning_start,
+  morning_end,
+  midday_start,
+  midday_end,
+  afternoon_start,
+  afternoon_end,
+  evening_start,
+  evening_end
+)
+
+
+time_cols = c(
+  morning_start   = "#C68B59",
+  morning_end     = "#C68B59",
+  midday_start    = "#E6C594",
+  midday_end      = "#E6C594",
+  afternoon_start = "#C68B59",
+  afternoon_end   = "#C68B59",
+  evening_start   = "#94B49F",
+  evening_end     = "#94B49F"
+)
 
 
 with(hd,
@@ -720,24 +740,8 @@ axis(side = 1,
      labels = 7:19)
 axis(side = 2)
 #add lines indicating the approximate expected start and end of each experiment
-abline(v = c(morning_start,
-            morning_end,
-            midday_start,
-            midday_end ,
-            afternoon_start,
-            afternoon_end,
-            evening_start,
-            evening_end
-             ),
-       col = c(morning_start = 'darkred',
-            morning_end = 'darkred',
-            midday_start = 'orange',
-            midday_end = 'orange',
-            afternoon_start = 'darkred',
-            afternoon_end = 'darkred',
-            evening_start = 'seagreen',
-            evening_end = 'seagreen'
-             ),
+abline(v = exper_times,
+       col = time_cols,
        lty = c(1,2),
        lwd = 3
        )
@@ -800,11 +804,13 @@ Solar elevations range between -1.7° (after sunset) and 84° (high noon). Aroun
 are at high elevations (>75°).
 
 ```{r plot-sun-azimuth}
+par(pty = 's')
+#is this ignored?
 
 par(mfrow = c(2,2),
-    cex = 1.0,
-    mar = c(0,0,0,0))
-par(pty = 's')
+    cex = 0.3,
+    mar = c(0,0,4.5,0))
+
 with(subset(hd,
             GetToD(sast_time,
                      tz = 'UTC') > morning_start &
@@ -812,11 +818,21 @@ with(subset(hd,
                      tz = 'UTC') < morning_end),
      {
 PCfun(sun_az,
-      col = 'darkred',
+      col = time_cols['morning_start'],
       shrink = sqrt(length(sun_az)),
       title = "Morning")
      }
 )
+#add North
+arrows.circular(x = circular(0,
+                             template = "geographics"),
+                y = 1e3)
+#add feeder
+arrows.circular(x = circular(-68,
+                             template = "geographics"),
+                y = 1e3,
+                col = 'navajowhite4')
+
 with(subset(hd,
             GetToD(sast_time,
                      tz = 'UTC') > midday_start &
@@ -824,11 +840,20 @@ with(subset(hd,
                      tz = 'UTC') < midday_end),
      {
 PCfun(sun_az,
-      col = 'orange',
+      col =  time_cols['midday_start'],
       shrink = sqrt(length(sun_az)),
       title = "Midday")
      }
 )
+#add North
+arrows.circular(x = circular(0,
+                             template = "geographics"),
+                y = 1e3)
+#add feeder
+arrows.circular(x = circular(-68,
+                             template = "geographics"),
+                y = 1e3,
+                col = 'navajowhite4')
 
 with(subset(hd,
             GetToD(sast_time,
@@ -837,11 +862,20 @@ with(subset(hd,
                      tz = 'UTC') < afternoon_end),
      {
 PCfun(sun_az,
-      col = 'darkred',
+      col = time_cols['afternoon_start'],
       shrink = sqrt(length(sun_az)),
       title = "Afternoon")
      }
 )
+#add North
+arrows.circular(x = circular(0,
+                             template = "geographics"),
+                y = 1e3)
+#add feeder
+arrows.circular(x = circular(-68,
+                             template = "geographics"),
+                y = 1e3,
+                col = 'navajowhite4')
 
 with(subset(hd,
             GetToD(sast_time,
@@ -850,11 +884,20 @@ with(subset(hd,
                      tz = 'UTC') < evening_end),
      {
 PCfun(sun_az,
-      col = 'darkgreen',
+      col = time_cols['evening_start'],
       shrink = sqrt(length(sun_az)),
       title = "Evening")
      }
 )
+#add North
+arrows.circular(x = circular(0,
+                             template = "geographics"),
+                y = 1e3)
+#add feeder
+arrows.circular(x = circular(-68,
+                             template = "geographics"),
+                y = 1e3,
+                col = 'navajowhite4')
 mtext(text = "Sun Azimuths",
       outer = TRUE,
       side = 3,
@@ -954,26 +997,10 @@ with(subset(hd, condition %in% c("vertical", "horizontal", "deg10")),
      )
 
 #add lines indicating the approximate expected start and end of each experiment
-abline(v = c(morning_start,
-            morning_end,
-            midday_start,
-            midday_end,
-            afternoon_start,
-            afternoon_end,
-            evening_start,
-            evening_end
-             ),
-       col = c(morning_start = 'darkred',
-            morning_end = 'darkred',
-            midday_start = 'orange',
-            midday_end = 'orange',
-            afternoon_start = 'darkred',
-            afternoon_end = 'darkred',
-            evening_start = 'seagreen',
-            evening_end = 'seagreen'
-             ),
+abline(v = exper_times,
+       col = time_cols,
        lty = c(1,2),
-       lwd = 3
+       lwd = 1
        )
 
 
@@ -1005,33 +1032,21 @@ with(subset(hd, condition %in% c("solar", "antisolar")),
 
 
 #add lines indicating the approximate expected start and end of each experiment
-abline(v = c(morning_start,
-            morning_end,
-            midday_start,
-            midday_end,
-            afternoon_start,
-            afternoon_end,
-            evening_start,
-            evening_end
-             ),
-       col = c(morning_start = 'darkred',
-            morning_end = 'darkred',
-            midday_start = 'orange',
-            midday_end = 'orange',
-            afternoon_start = 'darkred',
-            afternoon_end = 'darkred',
-            evening_start = 'seagreen',
-            evening_end = 'seagreen'
-             ),
+abline(v = exper_times,
+       col = time_cols,
        lty = c(1,2),
-       lwd = 3
+       lwd = 1
        )
 
 ```
 
 # Format angles
 
-**TODO** comment this
+
+Calculate angular error mismatch between  u/v components and reported video angle.
+Identify and report any problematic dances with errors exceeding 1°, reporting their IDs, tracked directions, and source video files.
+Handles edge cases by setting direction and angle values to `NA` where the tracked direction is a zero vector (no angle tracked).
+
 ```{r investigate-angles}
 #check angle format
 
@@ -1039,13 +1054,23 @@ est_err = with(hd, {
     (atan2(y = direction_v, x = direction_u) + pi/2) - rad(video_angle_deg) 
   })
 abs_est_err = mod_circular(abs(est_err))
-#these can be out by as much as 1/100 of a degree, except two which are out by 90°
-hist(x = deg(abs_est_err), 
+#these can be out by as much as 1/(1000 000 000 000) of a degree
+hist(x = abs(deg(abs_est_err)), 
      breaks = 1e2,
-     xlab = 'absolute error in video angle')
+     xlim = c(0, 180),
+     # xlim = c(min(abs(deg(abs_est_err))[abs(deg(abs_est_err))>0]), 180),
+     xlab = 'absolute error in video angle',
+     # log = 'x',
+     main = paste0('maximum error: ', signif(max(abs(deg(abs_est_err))), 3), "°" )
+      )
+
+if(any(abs_est_err > 1))
+{
+  message("dances with error >1°:\n")
 cbind(with(hd[abs_est_err > 1,],
      as.character(unique(ID_d))),
           unique(deg(abs_est_err[abs_est_err > 1])) )
+message("tracked directions and video files:\n")
 with(hd[abs_est_err > 1,],
            cbind(
      as.character(unique(ID_d)),
@@ -1068,46 +1093,80 @@ hd = within(hd,
                           ] = NA
             }
             )
+}else
+{print("no dances with error >1°")}
 ```
+
 `waggle_true_bearing` should be the direction relative to North.
-This has not been calculated yet for this data.
-There is a true North for the horizontal condition
-**TODO** comment this
+There is a true North for the horizontal condition, determined using a magnetic compass 
+and correction for local magnetic declination
+**TODO** check about `NA` declinations.
 
 ```{r check-calibration}
 with(subset(hd, condition %in% "horizontal"),
      {
+       print("True North across videos (camera perspective)")
        print(
-     summary(true_north_video_deg) 
+     summary(true_north_video_deg),
+     digits = 2
        )
-       print(
-     summary(declination_deg) 
-       )
+     #   
+     #   print(
+     # summary(declination_deg) 
+     #   )
+       print("True waggle dance bearings after correction")
        print(
          summary(waggle_true_bearing_deg),
-         digits = 3
+         digits = 2
        )
-       print(
-         summary(waggle_true_bearing_deg - video_angle_deg),
-         digits = 3
-       )       
        
-       print(
-         summary(true_north_video_deg),
-         digits = 3
-       )
+       #this differs across videos
+       # print(
+       #   summary(waggle_true_bearing_deg - video_angle_deg),
+       #   digits = 3
+       # )       
+       
        #check the correction
+       print("Reproduction error for video angle correction")
        print(
          summary(Mod360.180(video_angle_deg - true_north_video_deg - waggle_true_bearing_deg)),
-         digits = 3
+         digits = 2
        )
+       
+       hist(x = abs(Mod360.180(video_angle_deg - true_north_video_deg - waggle_true_bearing_deg)), 
+     breaks = 1e2,
+     xlim = c(0, 180),
+     # xlim = c(min(abs(deg(abs_est_err))[abs(deg(abs_est_err))>0]), 180),
+     xlab = 'absolute error in true North correction',
+     # log = 'x',
+     main = paste0('maximum error: ', signif(max(abs(Mod360.180(video_angle_deg - true_north_video_deg - waggle_true_bearing_deg))), 3), "°" )
+      )
        
      }
      )
 
 ```
 
-**TODO** comment this
+
+Dance orientation measurements vary depending on the experimental condition. 
+Some use compass-corrected bearings whilst others rely on video alignment. 
+To enable consistent analysis across all conditions, we need to consolidate these angles into standard formats.
+
+1. Select the best angle measurement for each dance based on its experimental condition:
+
+  - Use `waggle_true_bearing_deg` (compass-corrected) for most conditions (horizontal, deg10, antisolar, solar, zenith)
+
+  - Use `video_angle_deg` (video-aligned) for vertical dances only
+
+2. Convert to multiple formats:
+
+  -  `bearing`: the selected raw angle in degrees [0°, 360°]
+  -  `signed_angle`: bearing in [-180, 180]°
+  - `angle`: signed angle converted to radians $[-\pi, \pi]$
+
+3. Remove the temporary `video_angle_deg` column
+
+4. Display summary statistics of all three angle representations
 
 ```{r format-angles}
 #assign angles to numeric
@@ -1118,25 +1177,28 @@ hd = within(hd,
               # bearing = deg(atan2(y = direction_v, x = direction_u) + pi/2) %% 360
               bearing = mapply(FUN = switch,
                                EXPR = condition,
+                               vertical =  video_angle_deg, #aligned by default
                                horizontal = waggle_true_bearing_deg, #corrected with compass
                                deg10 = waggle_true_bearing_deg,
-                               vertical =  video_angle_deg, #aligned by default
-                               # antisolar = video_angle_deg, #aligned by default
-                               # solar = (video_angle_deg +180) %% 360, #misaligned 180°
                                antisolar = waggle_true_bearing_deg, #now calibrated
                                solar = waggle_true_bearing_deg, #now calibrated
                                zenith = waggle_true_bearing_deg, #now calibrated
                                video_angle_deg
                               )
               signed_angle = Mod360.180(bearing)  # bearing between -180 and 180
-              # angle = circular(rad(signed_angle),# bearing between -pi and pi
-              #                  rotation = 'clock') # circular format suppresses later warnings
               angle = rad(signed_angle)# circular format is not needed for organising
                                
               rm('video_angle_deg')
             }
             )
-with(hd, sapply(list(bearing, signed_angle, angle), FUN = summary))
+
+sm_angles = with(hd, sapply(list(bearing, signed_angle, angle), FUN = summary))
+colnames(sm_angles) = c("bearing", "signed_angle", "angle")
+print("Final angular values")
+print(
+sm_angles,
+digits = 2
+)
 ```
 # Inspect dances
 
@@ -1145,176 +1207,556 @@ with(hd, sapply(list(bearing, signed_angle, angle), FUN = summary))
 For example we can look at the dances for Blue-22 recorded on 2025-01-28 at 
 07:57:05, 08:10:00, 08:29:00, 08:34:00 & 10:44:09—each of which is the first for 
 one of the conditions.
-Sun azimuth (possibly incorrect) is shown as an orange line.
+Feeder azimuth (possibly incorrect) is shown as an brown line.
 
 ```{r example-subset}
-subs_20250128 = subset(hd, day %in% "20250128")
-#find first dance for each condition on 2025.01.28
+for(example_day in unique(hd$day))
+{
+# example_day = "20250127"
+subs_day = subset(hd, day %in% example_day)
+#find first dance for each condition on 2025.01.27
 example_lst = list()
 for(stim in unique(hd$condition))
 {
-example_lst[[stim]] = with(subset(subs_20250128, condition %in% stim),
+example_lst[[stim]] = with(subset(subs_day, condition %in% stim),
                            unique(ID_d)[1])
 }
 #inspect
-print(t(t(unlist(example_lst))))
+print(paste("First dance for each condition on", example_day))
+print(t(t(unlist(lapply(X = example_lst, FUN = as.character)))))
 
 example_subs = subset(x = hd,
                       ID_d %in% paste(unlist(example_lst))
                       )
 
-par(mfrow = c(2,2), mar = c(0,0,0,0))
-with(subset(example_subs,
+par(mfrow = c(2,3), mar = c(0,0,0,0))
+
+if(with(example_subs, any(condition %in% "vertical")))
+{
+  with(subset(example_subs,
             subset = condition %in% 'vertical'),
      {
   PCfun(angles = bearing,
         col = 'darkgreen',
         shrink = 1.5,
-        title = paste(unique(time), unique(condition)))
+        title = paste(unique(ID), unique(time), unique(condition)))
   lines(
     x = c(0, sin(rad(feeder_az))),
     y = c(0, cos(rad(feeder_az))),
-    col = adjustcolor('orange', alpha.f = 0.5),
+    col = adjustcolor('navajowhite4', alpha.f = 0.5),
     lwd = 2
   )
      }
 )
 
+  }else
+{
+  plot(NULL,
+       axes = F,
+       xlim = c(0,0),
+       ylim = c(0,0),
+       xlab = '',
+       ylab = '',
+       main = "")
+  legend(x = 'center',
+         legend = "no vertical data found")
+}
+
+if(with(example_subs, any(condition %in% "horizontal")))
+{
 with(subset(example_subs,
             subset = condition %in% 'horizontal'),
      {
 PCfun(angles = bearing,
       col = 'darkred',
       shrink = 1.5,
-      title = paste(unique(time), unique(condition)))
+      title = paste(unique(ID), unique(time), unique(condition)))
          lines(
     x = c(0, sin(rad(feeder_az))),
     y = c(0, cos(rad(feeder_az))),
-    col = adjustcolor('orange', alpha.f = 0.5),
+    col = adjustcolor('navajowhite4', alpha.f = 0.5),
     lwd = 2
   )
      }
 )
+
+  }else
+{
+  plot(NULL,
+       axes = F,
+       xlim = c(0,0),
+       ylim = c(0,0),
+       xlab = '',
+       ylab = '',
+       main = "")
+  legend(x = 'center',
+         legend = "no horizontal data found")
+}
+
+
+if(with(example_subs, any(condition %in% "deg_10")))
+{
+with(subset(example_subs,
+            subset = condition %in% 'deg_10'),
+     {
+PCfun(angles = bearing,
+      col = 'seagreen',
+      shrink = 1.5,
+      title = paste(unique(ID), unique(time), unique(condition)))
+         lines(
+    x = c(0, sin(rad(feeder_az))),
+    y = c(0, cos(rad(feeder_az))),
+    col = adjustcolor('navajowhite4', alpha.f = 0.5),
+    lwd = 2
+  )
+     }
+)
+}else
+{
+  plot(NULL,
+       axes = F,
+       xlim = c(0,0),
+       ylim = c(0,0),
+       xlab = '',
+       ylab = '',
+       main = "")
+  legend(x = 'center',
+         legend = "no 10° tilted data found")
+}
+
+if(with(example_subs, any(condition %in% "antisolar")))
+{
 with(subset(example_subs,
             subset = condition %in% 'antisolar'),
      {
 PCfun(angles = bearing,
       col = 'cyan4',
       shrink = 1.5,
-      title = paste(unique(time), unique(condition)))
+      title = paste(unique(ID), unique(time), unique(condition)))
          lines(
     x = c(0, sin(rad(feeder_az))),
     y = c(0, cos(rad(feeder_az))),
-    col = adjustcolor('orange', alpha.f = 0.5),
+    col = adjustcolor('navajowhite4', alpha.f = 0.5),
     lwd = 2
   )
      }
 )
+
+
+  }else
+{
+  plot(NULL,
+       axes = F,
+       xlim = c(0,0),
+       ylim = c(0,0),
+       xlab = '',
+       ylab = '',
+       main = "")
+  legend(x = 'center',
+         legend = "no antisolar data found")
+}
+
+
+if(with(example_subs, any(condition %in% "solar")))
+{
 with(subset(example_subs,
             subset = condition %in% 'solar'),
      {
 PCfun(angles = bearing,
       col = 'blue4',
       shrink = 1.5,
-      title = paste(unique(time), unique(condition)))
+      title = paste(unique(ID), unique(time), unique(condition)))
          lines(
-    x = c(0, sin(rad(feeder_az+180))),
-    y = c(0, cos(rad(feeder_az+180))),
-    col = adjustcolor('orange', alpha.f = 0.5),
+    x = c(0, sin(rad(feeder_az))),
+    y = c(0, cos(rad(feeder_az))),
+    col = adjustcolor('navajowhite4', alpha.f = 0.5),
     lwd = 2
   )
      }
 )
+
+  }else
+{
+  plot(NULL,
+       axes = F,
+       xlim = c(0,0),
+       ylim = c(0,0),
+       xlab = '',
+       ylab = '',
+       main = "")
+  legend(x = 'center',
+         legend = "no solar data found")
+}
+
+
+if(with(example_subs, any(condition %in% "zenith")))
+{
+with(subset(example_subs,
+            subset = condition %in% 'zenith'),
+     {
+PCfun(angles = bearing,
+      col = 'skyblue3',
+      shrink = 1.5,
+      title = paste(unique(ID), unique(time), unique(condition)))
+         lines(
+    x = c(0, sin(rad(feeder_az))),
+    y = c(0, cos(rad(feeder_az))),
+    col = adjustcolor('navajowhite4', alpha.f = 0.5),
+    lwd = 2
+  )
+     }
+)
+
+}else
+{
+  plot(NULL,
+       axes = F,
+       xlim = c(0,0),
+       ylim = c(0,0),
+       xlab = '',
+       ylab = '',
+       main = "")
+  legend(x = 'center',
+         legend = "no zenith data found")
+}
+
+
+mtext(text = paste("First dance of each type on", example_day),
+      side = 3,
+      line = -1.5,
+      outer = TRUE)
+}
 ```
 
 
 
 # Calculate dance offset from feeder
 
-**TODO** comment this
+To compare the dance angles against the true feeder direction, we calculate 
+the angular offset between each dance and the expected feeder bearing, 
+measured relative to sun position or the vertical .
+
+1. Calculate the  angle between the dance bearing and the feeder bearing.
+
+2. Convert to absolute angle in degrees for easier interpretation.
+
+3. Print summary statistics of dance accuracy (absolute offset) for each experimental condition
+
+
 ```{r feeder-angle}
 #assign angles to numeric
 
-#video_angle_deg is the dance angle clockwise rel to vertical, except  error
 hd = within(hd, 
             {
               feeder_angle = mod_circular(rad(bearing - feeder_az))# angle between dance and expected dance
               abs_feeder_angle_deg = deg(abs(as.numeric(feeder_angle)))# absolute angle in numeric format
             }
             )
-
+print("Absolute dance offset from true feeder bearing.")
+for(stim in unique(hd$condition))
+{
+  print(stim)
 print(
-  with(subset(hd, condition %in% 'vertical'), summary(abs_feeder_angle_deg)),
+  with(subset(hd, condition %in% stim), summary(abs_feeder_angle_deg)),
   digits = 2
 )
-print(
-  with(subset(hd, condition %in% 'horizontal'), summary(abs_feeder_angle_deg)),
-  digits = 1
-)
-print(
-  with(subset(hd, condition %in% 'antisolar'), summary(abs_feeder_angle_deg)),
-  digits = 1
-)
-print(
-  with(subset(hd, condition %in% 'solar'), summary(abs_feeder_angle_deg)),
-  digits = 1
-)
-
+}
 ```
 
+On average, vertical dances are $\approx$20°–25° from the expected direction, 
+whereas for the other conditions divergences are much larger. 
+For zenithal skylight in particular, there appear to be more dances opposite 
+the feeder than towards it.
 
 ### Plot example feeder angles
-**TODO** comment this
+
+Plot individual examples from each condition relative to the correct feeder direction. 
+
+1. Loop through each experimental day
+
+2. Identify the first dance for each condition
+
+3. Plot the angular offset to the expected feeder bearing, showing sun azimuth in yellow for reference.
 
 ```{r feeder-angle-examples}
-#update the subset
+for(example_day in unique(hd$day))
+{
+# example_day = "20250127"
+subs_day = subset(hd, day %in% example_day)
+#find first dance for each condition on 2025.01.27
+example_lst = list()
+for(stim in unique(hd$condition))
+{
+example_lst[[stim]] = with(subset(subs_day, condition %in% stim),
+                           unique(ID_d)[1])
+}
+#inspect
+print(paste("First dance for each condition on", example_day))
+print(t(t(unlist(lapply(X = example_lst, FUN = as.character)))))
+
 example_subs = subset(x = hd,
                       ID_d %in% paste(unlist(example_lst))
                       )
 
-par(mfrow = c(2,2), mar = c(0,0,0,0))
-    with(subset(example_subs,
-                subset = condition %in% 'vertical'),
-         {
-      PCfun(angles = deg(feeder_angle),
-            col = 'darkgreen',
-            shrink = 1.5,
-            title = paste(unique(time), unique(condition)))
-         }
-    )
+par(mfrow = c(2,3), mar = c(0,0,0,0))
 
+if(with(example_subs, any(condition %in% "vertical")))
+{
+  with(subset(example_subs,
+            subset = condition %in% 'vertical'),
+     {
+  PCfun(angles = deg(feeder_angle),
+        col = 'darkgreen',
+        shrink = 1.5,
+        title = paste(unique(ID), unique(time), unique(condition)))
+  lines(
+    x = c(0, sin(rad(sun_az - feeder_az))),
+    y = c(0, cos(rad(sun_az - feeder_az))),
+    col = adjustcolor('yellow3', alpha.f = 0.5),
+    lwd = 2
+  )
+     }
+)
+
+  }else
+{
+  plot(NULL,
+       axes = F,
+       xlim = c(0,0),
+       ylim = c(0,0),
+       xlab = '',
+       ylab = '',
+       main = "")
+  legend(x = 'center',
+         legend = "no vertical data found")
+}
+
+if(with(example_subs, any(condition %in% "horizontal")))
+{
 with(subset(example_subs,
             subset = condition %in% 'horizontal'),
      {
 PCfun(angles = deg(feeder_angle),
       col = 'darkred',
       shrink = 1.5,
-      title = paste(unique(time), unique(condition)))
+      title = paste(unique(ID), unique(time), unique(condition)))
+         lines(
+    x = c(0, sin(rad(sun_az - feeder_az))),
+    y = c(0, cos(rad(sun_az - feeder_az))),
+    col = adjustcolor('yellow3', alpha.f = 0.5),
+    lwd = 2
+  )
      }
 )
+
+  }else
+{
+  plot(NULL,
+       axes = F,
+       xlim = c(0,0),
+       ylim = c(0,0),
+       xlab = '',
+       ylab = '',
+       main = "")
+  legend(x = 'center',
+         legend = "no horizontal data found")
+}
+
+
+if(with(example_subs, any(condition %in% "deg_10")))
+{
+with(subset(example_subs,
+            subset = condition %in% 'deg_10'),
+     {
+PCfun(angles = deg(feeder_angle),
+      col = 'seagreen',
+      shrink = 1.5,
+      title = paste(unique(ID), unique(time), unique(condition)))
+         lines(
+    x = c(0, sin(rad(sun_az - feeder_az))),
+    y = c(0, cos(rad(sun_az - feeder_az))),
+    col = adjustcolor('yellow3', alpha.f = 0.5),
+    lwd = 2
+  )
+     }
+)
+}else
+{
+  plot(NULL,
+       axes = F,
+       xlim = c(0,0),
+       ylim = c(0,0),
+       xlab = '',
+       ylab = '',
+       main = "")
+  legend(x = 'center',
+         legend = "no 10° tilted data found")
+}
+
+if(with(example_subs, any(condition %in% "antisolar")))
+{
 with(subset(example_subs,
             subset = condition %in% 'antisolar'),
      {
 PCfun(angles = deg(feeder_angle),
       col = 'cyan4',
       shrink = 1.5,
-      title = paste(unique(time), unique(condition)))
+      title = paste(unique(ID), unique(time), unique(condition)))
+         lines(
+    x = c(0, sin(rad(sun_az - feeder_az))),
+    y = c(0, cos(rad(sun_az - feeder_az))),
+    col = adjustcolor('yellow3', alpha.f = 0.5),
+    lwd = 2
+  )
      }
 )
+
+
+  }else
+{
+  plot(NULL,
+       axes = F,
+       xlim = c(0,0),
+       ylim = c(0,0),
+       xlab = '',
+       ylab = '',
+       main = "")
+  legend(x = 'center',
+         legend = "no antisolar data found")
+}
+
+
+if(with(example_subs, any(condition %in% "solar")))
+{
 with(subset(example_subs,
             subset = condition %in% 'solar'),
      {
 PCfun(angles = deg(feeder_angle),
       col = 'blue4',
       shrink = 1.5,
-      title = paste(unique(time), unique(condition)))
+      title = paste(unique(ID), unique(time), unique(condition)))
+         lines(
+    x = c(0, sin(rad(sun_az - feeder_az))),
+    y = c(0, cos(rad(sun_az - feeder_az))),
+    col = adjustcolor('yellow3', alpha.f = 0.5),
+    lwd = 2
+  )
      }
 )
+
+  }else
+{
+  plot(NULL,
+       axes = F,
+       xlim = c(0,0),
+       ylim = c(0,0),
+       xlab = '',
+       ylab = '',
+       main = "")
+  legend(x = 'center',
+         legend = "no solar data found")
+}
+
+
+if(with(example_subs, any(condition %in% "zenith")))
+{
+with(subset(example_subs,
+            subset = condition %in% 'zenith'),
+     {
+PCfun(angles = deg(feeder_angle),
+      col = 'skyblue3',
+      shrink = 1.5,
+      title = paste(unique(ID), unique(time), unique(condition)))
+         lines(
+    x = c(0, sin(rad(sun_az - feeder_az))),
+    y = c(0, cos(rad(sun_az - feeder_az))),
+    col = adjustcolor('yellow3', alpha.f = 0.5),
+    lwd = 2
+  )
+     }
+)
+
+}else
+{
+  plot(NULL,
+       axes = F,
+       xlim = c(0,0),
+       ylim = c(0,0),
+       xlab = '',
+       ylab = '',
+       main = "")
+  legend(x = 'center',
+         legend = "no zenith data found")
+}
+
+
+mtext(text = paste("Angle to expected feeder direction (1st of each condition),", example_day),
+      side = 3,
+      line = -1.5,
+      outer = TRUE)
+}
 ```
 
-
+As before, we notice that not all dances align well with the expected direction. 
+This likely results from a combination of sun azimuth and elevation, as well as 
+the part of the sky that is visible.
 
 # Write out reorganised data
+
+In the final data frame, we can remove some of the variables used only to check 
+data quality, since those checks have now been performed (or can be added) above.
+
+```{r choose-columns}
+# names(hd)
+
+rm_lst =  c(
+  #  "waggle_run",
+  # [2,] "condition",
+  # [3,] "csv_file",
+  "direction_u",
+  "direction_v",
+  "true_north_video_deg",
+  "waggle_true_bearing_deg",
+  "mean_magnetic_north_deg",
+  "true_north_calibration_deg",
+  # [10,] "calibration_quality_flag"
+  "start_x",
+  "start_y",
+  # [13,] "calibration_R"
+  "declination_deg",
+  # [15,] "video_file"
+  # [16,] "day"
+  # [17,] "time"
+  # [18,] "ID_d"
+  # [19,] "ID"
+  "date_fail",
+  "utc_time",
+  # [22,] "sast_time"
+  "expected_time",
+  # [24,] "sun_az"
+  # [25,] "sun_el"
+  # [26,] "feeder_az"
+  # [27,] "angle"
+  # [28,] "signed_angle"
+  # [29,] "bearing"
+  "abs_feeder_angle_deg"
+  # [31,] "feeder_angle"
+)
+
+hd = within(hd,
+            {
+               rm(list = rm_lst)
+            }
+            )
+
+print("Variables removed:")
+print(rm_lst)
+
+print("                                                                                                Variables kept:")
+print(names(hd))
+```
+
+Now that the data has been successfully reorganised, write out just the simplified data frame to CSV, in the same location as the original files.
 
 ```{r write-data}
 # Write out table
