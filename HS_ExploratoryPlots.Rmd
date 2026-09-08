@@ -1391,14 +1391,15 @@ with(subset(hd, condition %in% c("vertical") &
      )
      }
 )
-legend(x = 'topright',
-       legend = c("True sun azimuth",
-                  "Implied sun azimuth"),
+legend(x = 'bottomright',
+       legend = c("Sun azimuth",
+                  "Implied azimuth"),
        col=  c("gray50",
                "cyan"
                ),
        pch = c(3,
-               19)
+               19),
+       cex = 0.7
 )
 
 
