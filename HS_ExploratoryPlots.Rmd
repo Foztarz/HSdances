@@ -768,7 +768,7 @@ PCfun(angles = deg(feeder_angle),
 
 mtext(text = paste("Feeder angles for low sun elevations"),
       side = 1,
-      line = -1.5,
+      line = -1.0,
       outer = TRUE)
 ```
 
