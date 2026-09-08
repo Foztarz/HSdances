@@ -1339,3 +1339,67 @@ legend(x = 'topright',
 
 It looks like we have the best chance with blue 22, for which we have 
 the most dances during the rapid azimuth change period in the middle of the day.
+
+
+```{r b22-ephemeris}
+
+par(mfrow = c(1,1))
+#plot all vertical dances
+with(subset(hd, condition %in% c("vertical") & 
+              ID %in% c('22b') ),
+     {
+     plot(x = sort(GetToD(sast_time,
+                     tz = 'UTC')),
+          y = Mod360.180(sun_az)[order(GetToD(sast_time,
+                     tz = 'UTC'))],
+          xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
+          ylim = c(-1,1)*180,
+          xlab = 'UTC',
+          ylab = 'Sun Azimuth',
+          main = 'Blue 22, Vertical Dances',
+          type = 'b',
+          pch = 3,#cross
+          lwd = 5,
+          col = 'gray50'
+     )
+     abline(h = -4:4*c(45),
+            lty = 2) #limits
+     abline(v =  12*60*60, #as.numeric(as.POSIXct("1970-01-01 12:00:00 UTC"))
+            lty = 3)
+     }
+)
+#add lines indicating the approximate expected start and end of each experiment
+abline(v = exper_times,
+       col = time_cols,
+       lty = c(1,2),
+       lwd = 2
+       )
+#plot dances by bees of interest
+with(subset(hd, condition %in% c("vertical") &
+              ID %in% c('22b', '66b')
+            ),
+     {
+     points(x = GetToD(sast_time,
+                     tz = 'UTC'),
+          y = Mod360.180(dance_sun_angle + (sun_az - feeder_az)),
+          pch = 21,
+          cex = 1.2,
+          col = adjustcolor('black',
+                            alpha.f = 0.5),
+           bg = adjustcolor('cyan',
+                        alpha.f = 0.25)
+     )
+     }
+)
+legend(x = 'topright',
+       legend = c("True sun azimuth",
+                  "Implied sun azimuth"),
+       col=  c("gray50",
+               "cyan"
+               ),
+       pch = c(3,
+               19)
+)
+
+
+```
