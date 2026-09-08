@@ -1280,16 +1280,16 @@ with(subset(hd, condition %in% c("vertical") ),
      {
      plot(x = GetToD(sast_time,
                      tz = 'UTC'),
-          y = sun_el,
+          y = Mod360.180(sun_az),
           xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
-          ylim = c(-1,1)*c(5,90),
+          ylim = c(-1,1)*180,
           xlab = 'UTC',
-          ylab = 'Sun Elevation',
+          ylab = 'Sun Azimuth',
           main = 'Vertical dances',
           pch = 3,#cross
           col = 'gray50'
      )
-     abline(h = 0:6*c(15),
+     abline(h = -4:4*c(45),
             lty = 2) #limits
      abline(v =  12*60*60, #as.numeric(as.POSIXct("1970-01-01 12:00:00 UTC"))
             lty = 3)
@@ -1299,7 +1299,7 @@ with(subset(hd, condition %in% c("vertical") ),
 abline(v = exper_times,
        col = time_cols,
        lty = c(1,2),
-       lwd = 1
+       lwd = 2
        )
 #plot dances by bees of interest
 with(subset(hd, condition %in% c("vertical") & 
@@ -1308,21 +1308,34 @@ with(subset(hd, condition %in% c("vertical") &
      {
      points(x = GetToD(sast_time,
                      tz = 'UTC'),
-          y = sun_el,
+          y = Mod360.180(sun_az),
           pch = 21,
           col = 'black',
           cex = 1.2,
            bg = adjustcolor(sapply(X = as.character(ID),
                         FUN = switch,
                         `22b` = 'cyan',
-                        `66b` = 'slategray2',
+                        `66b` = 'cadetblue',
                         'red',#if these show up, oops!
                         alpha.f = 0.25)
            )
      )
      }
 )
+legend(x = 'topright',
+       legend = c("Blue 22",
+                  "Blue 66",
+                  "other"),
+       col=  c("cyan",
+               "cadetblue",
+               "gray50"),
+       pch = c(19, 19,
+               3)
+)
 
 
 ```
 
+
+It looks like we have the best chance with blue 22, for which we have 
+the most dances during the rapid azimuth change period in the middle of the day.
