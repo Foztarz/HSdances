@@ -23,10 +23,11 @@ editor_options:
 
 - Load data +
 - Reformat +
-- Select dances of interest
-- Plot dances of interest
-- Search for more examples
-- Plot additional examples
+- Select dances of interest +
+- Plot dances of interest +
+- Feeder angle plotting function
+- Solar ephemeris plots
+- Elevation-accuracy plots
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -1224,3 +1225,104 @@ mtext(text = paste("Feeder angles for high sun elevations"),
       line = -1.0,
       outer = TRUE)
 ```
+
+
+
+
+# Solar Ephemeris
+
+Using the vertical dances, it should be possible to identify the solar ephemeris 
+functions used by those individuals that danced repeatedly throughout the day.
+
+
+## Check dance times
+Blue 22 and blue 66 both danced very frequently, so we can start by checking when they danced.
+
+
+```{r vertical-dance-times}
+
+#assign experiment times
+morning_start = 7.50*60*60
+morning_end = 9.00*60*60
+midday_start = 11.00*60*60
+midday_end = 13.00*60*60
+afternoon_start = 15.00*60*60
+afternoon_end = 16.50*60*60
+evening_start = 17.50*60*60
+evening_end = 19.00*60*60
+
+exper_times = c(
+  morning_start,
+  morning_end,
+  midday_start,
+  midday_end,
+  afternoon_start,
+  afternoon_end,
+  evening_start,
+  evening_end
+)
+
+
+time_cols = c(
+  morning_start   = "#C68B59",
+  morning_end     = "#C68B59",
+  midday_start    = "#E6C594",
+  midday_end      = "#E6C594",
+  afternoon_start = "#C68B59",
+  afternoon_end   = "#C68B59",
+  evening_start   = "#94B49F",
+  evening_end     = "#94B49F"
+)
+
+par(mfrow = c(1,1))
+#plot all vertical dances
+with(subset(hd, condition %in% c("vertical") ),
+     {
+     plot(x = GetToD(sast_time,
+                     tz = 'UTC'),
+          y = sun_el,
+          xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
+          ylim = c(-1,1)*c(5,90),
+          xlab = 'UTC',
+          ylab = 'Sun Elevation',
+          main = 'Vertical dances',
+          pch = 3,#cross
+          col = 'gray50'
+     )
+     abline(h = 0:6*c(15),
+            lty = 2) #limits
+     abline(v =  12*60*60, #as.numeric(as.POSIXct("1970-01-01 12:00:00 UTC"))
+            lty = 3)
+     }
+)
+#add lines indicating the approximate expected start and end of each experiment
+abline(v = exper_times,
+       col = time_cols,
+       lty = c(1,2),
+       lwd = 1
+       )
+#plot dances by bees of interest
+with(subset(hd, condition %in% c("vertical") & 
+              ID %in% c('22b', '66b') 
+            ),
+     {
+     points(x = GetToD(sast_time,
+                     tz = 'UTC'),
+          y = sun_el,
+          pch = 21,
+          col = 'black',
+          cex = 1.2,
+           bg = adjustcolor(sapply(X = as.character(ID),
+                        FUN = switch,
+                        `22b` = 'cyan',
+                        `66b` = 'slategray2',
+                        'red',#if these show up, oops!
+                        alpha.f = 0.25)
+           )
+     )
+     }
+)
+
+
+```
+
