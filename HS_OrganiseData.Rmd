@@ -1694,8 +1694,8 @@ PCfun(angles = deg(feeder_angle),
 
 
 mtext(text = paste("Angle to expected feeder direction (1st of each condition),", example_day),
-      side = 3,
-      line = -1.5,
+      side = 1,#angles should point to top, label a bottom
+      line = -1.0,
       outer = TRUE)
 }
 ```
