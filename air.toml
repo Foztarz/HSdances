@@ -1,0 +1,4 @@
+[format]
+assignment-style = "equal"
+line-width = 40
+persistent-line-breaks = true
