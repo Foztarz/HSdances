@@ -1242,14 +1242,14 @@ Blue 22 and blue 66 both danced very frequently, so we can start by checking whe
 ```{r vertical-dance-times}
 
 #assign experiment times
-morning_start = 7.50*60*60
-morning_end = 9.00*60*60
-midday_start = 11.00*60*60
-midday_end = 13.00*60*60
-afternoon_start = 15.00*60*60
-afternoon_end = 16.50*60*60
-evening_start = 17.50*60*60
-evening_end = 19.00*60*60
+morning_start = 7.50 * 60 * 60
+morning_end = 9.00 * 60 * 60
+midday_start = 11.00 * 60 * 60
+midday_end = 13.00 * 60 * 60
+afternoon_start = 15.00 * 60 * 60
+afternoon_end = 16.50 * 60 * 60
+evening_start = 17.50 * 60 * 60
+evening_end = 19.00 * 60 * 60
 
 exper_times = c(
   morning_start,
@@ -1390,16 +1390,15 @@ with(subset(hd, condition %in% c("vertical") &
      )
      }
 )
-legend(x = 'bottomright',
-       legend = c("Sun azimuth",
-                  "Implied azimuth"),
-       col=  c("gray50",
-               "cyan"
-               ),
-       pch = c(3,
-               19),
-       cex = 0.7
+legend(
+  x = 'bottomright',
+  legend = c(
+    "Sun azimuth",
+    "Implied azimuth"
+  ),
+  col = c("gray50", "cyan"),
+  pch = c(3, 19),
+  cex = 0.7
 )
-
 
 ```
