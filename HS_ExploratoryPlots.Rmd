@@ -1345,8 +1345,7 @@ the most dances during the rapid azimuth change period in the middle of the day.
 
 par(mfrow = c(1,1))
 #plot all vertical dances
-with(subset(hd, condition %in% c("vertical") & 
-              ID %in% c('22b') ),
+with(hd,
      {
      plot(x = sort(GetToD(sast_time,
                      tz = 'UTC')),
@@ -1376,7 +1375,7 @@ abline(v = exper_times,
        )
 #plot dances by bees of interest
 with(subset(hd, condition %in% c("vertical") &
-              ID %in% c('22b', '66b')
+              ID %in% c('22b')
             ),
      {
      points(x = GetToD(sast_time,
