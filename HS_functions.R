@@ -302,6 +302,102 @@ RhoDiff <- function(
   )
 }
 
+#Find the first unique ID_d for each condition after applying a subset expression.
+#The subset argument uses the same non-standard evaluation syntax as subset(),
+#for example: FirstIDdByCondition(hd, day %in% example_day).
+#Returns the selected IDs, the filtered data, and all rows matching the IDs.
+FirstDanceCond = function(
+  dta,
+  subset,
+  conditions = unique(dta$condition),
+  condition_col = 'condition',
+  id_col = 'ID_d',
+  verbose = TRUE
+) {
+  if (!is.data.frame(dta)) {
+    stop("'dta' must be a data frame.")
+  }
+  if (!condition_col %in% names(dta)) {
+    stop(
+      "Column '",
+      condition_col,
+      "' was not found in 'dta'."
+    )
+  }
+  if (!id_col %in% names(dta)) {
+    stop(
+      "Column '",
+      id_col,
+      "' was not found in 'dta'."
+    )
+  }
+
+  subset_result = eval(
+    substitute(subset),
+    dta,
+    parent.frame()
+  )
+  if (
+    !is.logical(subset_result) ||
+      length(subset_result) != nrow(dta)
+  ) {
+    stop(
+      "'subset' must evaluate to a logical vector with one value per row of 'dta'."
+    )
+  }
+  subset_dta = dta[
+    !is.na(subset_result) &
+      subset_result,
+    ,
+    drop = FALSE
+  ]
+
+  example_lst = lapply(
+    X = conditions,
+    FUN = function(stim) {
+      ids = unique(subset_dta[[id_col]][
+        subset_dta[[condition_col]] %in%
+          stim
+      ])
+      ids = ids[!is.na(ids)]
+      if (length(ids) == 0) {
+        NA_character_
+      } else {
+        as.character(ids[1])
+      }
+    }
+  )
+  names(example_lst) = conditions
+
+  selected_ids = unname(unlist(
+    lapply(example_lst, as.character),
+    use.names = FALSE
+  ))
+  selected_ids = selected_ids[
+    !is.na(selected_ids)
+  ]
+  example_subs = dta[
+    as.character(dta[[id_col]]) %in% selected_ids,
+    ,
+    drop = FALSE
+  ]
+
+  if (verbose) {
+    print(paste(
+      "First dance for each condition after subsetting"
+    ))
+    print(t(t(unlist(
+      lapply(example_lst, as.character)
+    ))))
+  }
+
+  list(
+    example_lst = example_lst,
+    example_subs = example_subs,
+    subset_dta = subset_dta
+  )
+}
+
 #Boxplot and stripchart together
 BoxStripLine <- function(
   x,
@@ -780,6 +876,99 @@ Plt_mu <- function(id, dta, vars = c('cel_body', 'Shade.NoShade'), ...) {
       ...
     )
   })
+}
+
+#Plot a subset of dances for the six experimental conditions in a 2x3 layout.
+#angle_for selects dance_sun_angle with feeder_az as reference ('sun') or
+#deg(feeder_angle) with sun_az as reference ('feeder').
+#Missing conditions are labelled; cond_cols supplies the condition-specific colours.
+Plt_subs = function(subs,
+                    angle_for = "sun",
+                    title = NULL,
+                    cond_cols = list(
+                      vertical = 'darkred',
+                      horizontal = 'darkgreen',
+                      tilted = 'seagreen',
+                      solar = 'blue4',
+                      antisolar = 'cyan4',
+                      zenith = "skyblue3"
+                    )) {
+  par(mfrow = c(2, 3),
+      mar = c(0, 0, 0, 0),
+      oma = c(1, 0, 0, 0))
+  
+  for (condition_name in  c("vertical",
+                            "horizontal",
+                            "tilted",
+                            "antisolar",
+                            "solar",
+                            "zenith")#preferred plotting order
+  ) {
+    condition_subs = subset(subs, condition %in% condition_name)
+    
+    if (nrow(condition_subs) > 0) {
+      plot_angles = with(condition_subs, {
+        switch(
+          angle_for,
+          sun = dance_sun_angle,
+          feeder = deg(feeder_angle),
+          get(angle_for)
+          
+        )
+      })
+      
+      PCfun(
+        angles = plot_angles,
+        col = cond_cols[[condition_name]],
+        shrink = 1.5,
+        title = with(condition_subs, {
+          paste(unique(ID), unique(time), unique(condition))
+        })
+      )
+      
+      ref_angle = with(condition_subs, {
+        switch(EXPR = angle_for,
+               sun = feeder_az[1],
+               feeder = sun_az[1],
+               NA)
+      })
+      
+      
+      lines(
+        x = c(0, sin(rad(ref_angle))),
+        y = c(0, cos(rad(ref_angle))),
+        col = adjustcolor(col =
+                            switch(
+                              EXPR = angle_for,
+                              sun = "navajowhite4",
+                              feeder = "yellow3",
+                              NA
+                            ), alpha.f = 0.5),
+        lwd = 3
+      )
+    } else {
+      plot(
+        NULL,
+        axes = FALSE,
+        xlim = c(0, 0),
+        ylim = c(0, 0),
+        xlab = "",
+        ylab = "",
+        main = ""
+      )
+      legend(x = "center",
+             legend = paste("no", condition_name, "data found"))
+    }
+  }
+  
+  if (!is.null(title)) {
+    mtext(
+      text = title,
+      side = 1,
+      line = -0.25,
+      outer = TRUE
+    )
+  }
 }
 
 

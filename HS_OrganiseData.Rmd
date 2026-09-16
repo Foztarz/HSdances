@@ -28,8 +28,8 @@ editor_options:
 - Export +
 - Adjust times for dome videos +
 - Incorporate calibrated dances +
-- Calculate dance - sun angle before feeder angle
-- Map out feeder and hive positions
+- Calculate dance - sun angle before feeder angle +
+- Map out feeder and hive positions 
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -996,6 +996,14 @@ feeder (presumably during the morning).
 Plot these to get an idea of how they match up.
 
 ```{r sanity-plot}
+cond_cols = list(
+  vertical = 'darkred',
+  horizontal = 'darkgreen',
+  tilted = 'seagreen',
+  solar = 'blue4',
+  antisolar = 'cyan4',
+  zenith = "skyblue3"
+)
 
 par(mfrow = c(1,2))
 with(subset(hd, condition %in% c("vertical", "horizontal", "deg10")),
@@ -1012,10 +1020,10 @@ with(subset(hd, condition %in% c("vertical", "horizontal", "deg10")),
           col = 'gray50',
            bg = adjustcolor(sapply(X = condition,
                         FUN = switch,
-                        vertical = 'darkred',
-                        horizontal = 'darkgreen',
-                        deg10 = 'seagreen',
-                        'seagreen'),
+                        vertical = cond_cols$vertical,#'darkred',
+                        horizontal = cond_cols$horizontal,#'darkgreen',
+                        tilted = cond_cols$tilted,#'seagreen',
+                        'darkorange2'),
                         alpha.f = 0.25)
      )
      abline(h = 0:6*c(15),
@@ -1047,9 +1055,10 @@ with(subset(hd, condition %in% c("solar", "antisolar")),
           col = 'gray50',
            bg = adjustcolor(sapply(X = condition,
                         FUN = switch,
-                        solar = 'blue4',
-                        antisolar = 'cyan4',
-                        'seagreen'),
+                        solar = cond_cols$solar,#'blue4',
+                        antisolar = cond_cols$antisolar,#'cyan4',
+                        zenith = cond_cols$zenith,#'cyan4',
+                        'darkorange2'),
                         alpha.f = 0.25 )
           )
      abline(h = 0:6*c(15),
@@ -1241,221 +1250,19 @@ Feeder azimuth relative to the sun is shown as an brown line.
 ```{r example-subset}
 for(example_day in unique(hd$day))
 {
-# example_day = "20250127"
-subs_day = subset(hd, day %in% example_day)
-#find first dance for each condition on 2025.01.27
-example_lst = list()
-for(stim in unique(hd$condition))
-{
-example_lst[[stim]] = with(subset(subs_day, condition %in% stim),
-                           unique(ID_d)[1])
-}
-#inspect
-print(paste("First dance for each condition on", example_day))
-print(t(t(unlist(lapply(X = example_lst, FUN = as.character)))))
-
-example_subs = subset(x = hd,
-                      ID_d %in% paste(unlist(example_lst))
-                      )
-
-par(mfrow = c(2,3), mar = c(0,0,0,0))
-
-if(with(example_subs, any(condition %in% "vertical")))
-{
-  with(subset(example_subs,
-            subset = condition %in% 'vertical'),
-     {
-  PCfun(angles = dance_sun_angle,
-        col = 'darkgreen',
-        shrink = 1.5,
-        title = paste(unique(ID), unique(time), unique(condition)))
-  lines(
-    x = c(0, sin(rad(feeder_az))),
-    y = c(0, cos(rad(feeder_az))),
-    col = adjustcolor('navajowhite4', alpha.f = 0.5),
-    lwd = 2
-  )
-     }
-)
-
-  }else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no vertical data found")
-}
-
-if(with(example_subs, any(condition %in% "horizontal")))
-{
-with(subset(example_subs,
-            subset = condition %in% 'horizontal'),
-     {
-PCfun(angles = dance_sun_angle,
-      col = 'darkred',
-      shrink = 1.5,
-      title = paste(unique(ID), unique(time), unique(condition)))
-         lines(
-    x = c(0, sin(rad(feeder_az))),
-    y = c(0, cos(rad(feeder_az))),
-    col = adjustcolor('navajowhite4', alpha.f = 0.5),
-    lwd = 2
-  )
-     }
-)
-
-  }else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no horizontal data found")
-}
-
-
-if(with(example_subs, any(condition %in% "tilted")))
-{
-with(subset(example_subs,
-            subset = condition %in% 'tilted'),
-     {
-PCfun(angles = dance_sun_angle,
-      col = 'seagreen',
-      shrink = 1.5,
-      title = paste(unique(ID), unique(time), unique(condition)))
-         lines(
-    x = c(0, sin(rad(feeder_az))),
-    y = c(0, cos(rad(feeder_az))),
-    col = adjustcolor('navajowhite4', alpha.f = 0.5),
-    lwd = 2
-  )
-     }
-)
-}else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no tilted data found")
-}
-
-if(with(example_subs, any(condition %in% "antisolar")))
-{
-with(subset(example_subs,
-            subset = condition %in% 'antisolar'),
-     {
-PCfun(angles = dance_sun_angle,
-      col = 'cyan4',
-      shrink = 1.5,
-      title = paste(unique(ID), unique(time), unique(condition)))
-         lines(
-    x = c(0, sin(rad(feeder_az))),
-    y = c(0, cos(rad(feeder_az))),
-    col = adjustcolor('navajowhite4', alpha.f = 0.5),
-    lwd = 2
-  )
-     }
-)
-
-
-  }else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no antisolar data found")
-}
-
-
-if(with(example_subs, any(condition %in% "solar")))
-{
-with(subset(example_subs,
-            subset = condition %in% 'solar'),
-     {
-PCfun(angles = dance_sun_angle,
-      col = 'blue4',
-      shrink = 1.5,
-      title = paste(unique(ID), unique(time), unique(condition)))
-         lines(
-    x = c(0, sin(rad(feeder_az))),
-    y = c(0, cos(rad(feeder_az))),
-    col = adjustcolor('navajowhite4', alpha.f = 0.5),
-    lwd = 2
-  )
-     }
-)
-
-  }else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no solar data found")
-}
-
-
-if(with(example_subs, any(condition %in% "zenith")))
-{
-with(subset(example_subs,
-            subset = condition %in% 'zenith'),
-     {
-PCfun(angles = dance_sun_angle,
-      col = 'skyblue3',
-      shrink = 1.5,
-      title = paste(unique(ID), unique(time), unique(condition)))
-         lines(
-    x = c(0, sin(rad(feeder_az))),
-    y = c(0, cos(rad(feeder_az))),
-    col = adjustcolor('navajowhite4', alpha.f = 0.5),
-    lwd = 2
-  )
-     }
-)
-
-}else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no zenith data found")
-}
-
-
-mtext(text = paste("First dance of each type on", example_day),
-      side = 3,
-      line = -1.5,
-      outer = TRUE)
+  print(example_day)
+  #select first dance for each condition from example day
+day_lst = FirstDanceCond(dta = hd,
+                        subset = day %in% example_day)  
+#plot 1st dance for each condition
+Plt_subs(subs = day_lst$example_subs,
+         angle_for = "sun",#plot with sun azimuth as frame of reference
+         cond_cols = cond_cols,
+         title =  paste("First dance of each type on", example_day)
+         )
 }
 ```
+
 
 
 
@@ -1509,221 +1316,23 @@ Plot individual examples from each condition relative to the correct feeder dire
 3. Plot the angular offset to the expected feeder bearing, showing sun azimuth in yellow for reference.
 
 ```{r feeder-angle-examples}
-for(example_day in unique(hd$day))
-{
-# example_day = "20250127"
-subs_day = subset(hd, day %in% example_day)
-#find first dance for each condition on 2025.01.27
-example_lst = list()
-for(stim in unique(hd$condition))
-{
-example_lst[[stim]] = with(subset(subs_day, condition %in% stim),
-                           unique(ID_d)[1])
-}
-#inspect
-print(paste("First dance for each condition on", example_day))
-print(t(t(unlist(lapply(X = example_lst, FUN = as.character)))))
-
-example_subs = subset(x = hd,
-                      ID_d %in% paste(unlist(example_lst))
-                      )
-
-par(mfrow = c(2,3), mar = c(0,0,0,0))
-
-if(with(example_subs, any(condition %in% "vertical")))
-{
-  with(subset(example_subs,
-            subset = condition %in% 'vertical'),
-     {
-  PCfun(angles = deg(feeder_angle),
-        col = 'darkgreen',
-        shrink = 1.5,
-        title = paste(unique(ID), unique(time), unique(condition)))
-  lines(
-    x = c(0, sin(rad(sun_az - feeder_az))),
-    y = c(0, cos(rad(sun_az - feeder_az))),
-    col = adjustcolor('yellow3', alpha.f = 0.5),
-    lwd = 2
+for (example_day in unique(hd$day)) {
+  print(example_day)
+  #select first dance for each condition from example day
+  day_lst = FirstDanceCond(
+    dta = hd,
+    subset = day %in% example_day
   )
-     }
-)
-
-  }else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no vertical data found")
-}
-
-if(with(example_subs, any(condition %in% "horizontal")))
-{
-with(subset(example_subs,
-            subset = condition %in% 'horizontal'),
-     {
-PCfun(angles = deg(feeder_angle),
-      col = 'darkred',
-      shrink = 1.5,
-      title = paste(unique(ID), unique(time), unique(condition)))
-         lines(
-    x = c(0, sin(rad(sun_az - feeder_az))),
-    y = c(0, cos(rad(sun_az - feeder_az))),
-    col = adjustcolor('yellow3', alpha.f = 0.5),
-    lwd = 2
+  #plot 1st dance for each condition
+  Plt_subs(
+    subs = day_lst$example_subs,
+    angle_for = "feeder",#plot with feeder azimuth as frame of reference
+    cond_cols = cond_cols,
+    title = paste(
+      "Angle to expected feeder direction (1st of each condition),",
+      example_day
+    )
   )
-     }
-)
-
-  }else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no horizontal data found")
-}
-
-
-if(with(example_subs, any(condition %in% "tilted")))
-{
-with(subset(example_subs,
-            subset = condition %in% 'tilted'),
-     {
-PCfun(angles = deg(feeder_angle),
-      col = 'seagreen',
-      shrink = 1.5,
-      title = paste(unique(ID), unique(time), unique(condition)))
-         lines(
-    x = c(0, sin(rad(sun_az - feeder_az))),
-    y = c(0, cos(rad(sun_az - feeder_az))),
-    col = adjustcolor('yellow3', alpha.f = 0.5),
-    lwd = 2
-  )
-     }
-)
-}else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no tilted data found")
-}
-
-if(with(example_subs, any(condition %in% "antisolar")))
-{
-with(subset(example_subs,
-            subset = condition %in% 'antisolar'),
-     {
-PCfun(angles = deg(feeder_angle),
-      col = 'cyan4',
-      shrink = 1.5,
-      title = paste(unique(ID), unique(time), unique(condition)))
-         lines(
-    x = c(0, sin(rad(sun_az - feeder_az))),
-    y = c(0, cos(rad(sun_az - feeder_az))),
-    col = adjustcolor('yellow3', alpha.f = 0.5),
-    lwd = 2
-  )
-     }
-)
-
-
-  }else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no antisolar data found")
-}
-
-
-if(with(example_subs, any(condition %in% "solar")))
-{
-with(subset(example_subs,
-            subset = condition %in% 'solar'),
-     {
-PCfun(angles = deg(feeder_angle),
-      col = 'blue4',
-      shrink = 1.5,
-      title = paste(unique(ID), unique(time), unique(condition)))
-         lines(
-    x = c(0, sin(rad(sun_az - feeder_az))),
-    y = c(0, cos(rad(sun_az - feeder_az))),
-    col = adjustcolor('yellow3', alpha.f = 0.5),
-    lwd = 2
-  )
-     }
-)
-
-  }else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no solar data found")
-}
-
-
-if(with(example_subs, any(condition %in% "zenith")))
-{
-with(subset(example_subs,
-            subset = condition %in% 'zenith'),
-     {
-PCfun(angles = deg(feeder_angle),
-      col = 'skyblue3',
-      shrink = 1.5,
-      title = paste(unique(ID), unique(time), unique(condition)))
-         lines(
-    x = c(0, sin(rad(sun_az - feeder_az))),
-    y = c(0, cos(rad(sun_az - feeder_az))),
-    col = adjustcolor('yellow3', alpha.f = 0.5),
-    lwd = 2
-  )
-     }
-)
-
-}else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no zenith data found")
-}
-
-
-mtext(text = paste("Angle to expected feeder direction (1st of each condition),", example_day),
-      side = 1,#angles should point to top, label a bottom
-      line = -1.0,
-      outer = TRUE)
 }
 ```
 

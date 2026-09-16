@@ -100,8 +100,21 @@ length(u_id_d)#377 beedances
 
 # Plot Examples
 
+## Set up plot parameters
 
-### Plot an example dance
+```{r plot-parameters}
+cond_cols = list(
+  vertical = 'darkred',
+  horizontal = 'darkgreen',
+  tilted = 'seagreen',
+  solar = 'blue4',
+  antisolar = 'cyan4',
+  zenith = "skyblue3"
+)
+```
+
+
+## Plot an example dance
 
 For example we can look at the dances for Blue-22 recorded on 2025-01-28 at 
 08:12, 08:36, 08:58, 08:34 & 11:44—each of which is the first for one of the conditions.
@@ -110,220 +123,15 @@ Dances are plotted relative to sun position (0°) and feeder azimuth is shown as
 ```{r example-subset}
 example_day  = unique(hd$day)[length(unique(hd$day))]#last day
 example_bee = "22b"
-
-# example_day = "20250127"
-subs_day = subset(hd, day %in% example_day & ID %in% example_bee)
-#find first dance for each condition on 2025.01.27
-example_lst = list()
-for(stim in unique(hd$condition))
-{
-example_lst[[stim]] = with(subset(subs_day, condition %in% stim),
-                           unique(ID_d)[1])
-}
-#inspect
 print(paste("First dance for", example_bee, "for each condition on", example_day))
-print(t(t(unlist(lapply(X = example_lst, FUN = as.character)))))
-
-example_subs = subset(x = hd,
-                      ID_d %in% paste(unlist(example_lst))
-                      )
-
-par(mfrow = c(2,3), mar = c(0,0,0,0))
-
-if(with(example_subs, any(condition %in% "vertical")))
-{
-  with(subset(example_subs,
-            subset = condition %in% 'vertical'),
-     {
-  PCfun(angles = dance_sun_angle,
-        col = 'darkgreen',
-        shrink = 1.5,
-        title = paste(unique(ID), unique(time), unique(condition)))
-  lines(
-    x = c(0, sin(rad(feeder_az))),
-    y = c(0, cos(rad(feeder_az))),
-    col = adjustcolor('navajowhite4', alpha.f = 0.5),
-    lwd = 3
-  )
-     }
-)
-
-  }else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no vertical data found")
-}
-
-if(with(example_subs, any(condition %in% "horizontal")))
-{
-with(subset(example_subs,
-            subset = condition %in% 'horizontal'),
-     {
-PCfun(angles = dance_sun_angle,
-      col = 'darkred',
-      shrink = 1.5,
-      title = paste(unique(ID), unique(time), unique(condition)))
-         lines(
-    x = c(0, sin(rad(feeder_az))),
-    y = c(0, cos(rad(feeder_az))),
-    col = adjustcolor('navajowhite4', alpha.f = 0.5),
-    lwd = 2
-  )
-     }
-)
-
-  }else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no horizontal data found")
-}
-
-
-if(with(example_subs, any(condition %in% "tilted")))
-{
-with(subset(example_subs,
-            subset = condition %in% 'tilted'),
-     {
-PCfun(angles = dance_sun_angle,
-      col = 'seagreen',
-      shrink = 1.5,
-      title = paste(unique(ID), unique(time), unique(condition)))
-         lines(
-    x = c(0, sin(rad(feeder_az))),
-    y = c(0, cos(rad(feeder_az))),
-    col = adjustcolor('navajowhite4', alpha.f = 0.5),
-    lwd = 3
-  )
-     }
-)
-}else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no tilted data found")
-}
-
-if(with(example_subs, any(condition %in% "antisolar")))
-{
-with(subset(example_subs,
-            subset = condition %in% 'antisolar'),
-     {
-PCfun(angles = dance_sun_angle,
-      col = 'cyan4',
-      shrink = 1.5,
-      title = paste(unique(ID), unique(time), unique(condition)))
-         lines(
-    x = c(0, sin(rad(feeder_az))),
-    y = c(0, cos(rad(feeder_az))),
-    col = adjustcolor('navajowhite4', alpha.f = 0.5),
-    lwd = 3
-  )
-     }
-)
-
-
-  }else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no antisolar data found")
-}
-
-
-if(with(example_subs, any(condition %in% "solar")))
-{
-with(subset(example_subs,
-            subset = condition %in% 'solar'),
-     {
-PCfun(angles = dance_sun_angle,
-      col = 'blue4',
-      shrink = 1.5,
-      title = paste(unique(ID), unique(time), unique(condition)))
-         lines(
-    x = c(0, sin(rad(feeder_az))),
-    y = c(0, cos(rad(feeder_az))),
-    col = adjustcolor('navajowhite4', alpha.f = 0.5),
-    lwd = 3
-  )
-     }
-)
-
-  }else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no solar data found")
-}
-
-
-if(with(example_subs, any(condition %in% "zenith")))
-{
-with(subset(example_subs,
-            subset = condition %in% 'zenith'),
-     {
-PCfun(angles = dance_sun_angle,
-      col = 'skyblue3',
-      shrink = 1.5,
-      title = paste(unique(ID), unique(time), unique(condition)))
-         lines(
-    x = c(0, sin(rad(feeder_az))),
-    y = c(0, cos(rad(feeder_az))),
-    col = adjustcolor('navajowhite4', alpha.f = 0.5),
-    lwd = 3
-  )
-     }
-)
-
-}else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no zenith data found")
-}
-
-
-mtext(text = paste("First dance for", example_bee, "for each condition on", example_day),
-      side = 3,
-      line = -1.5,
-      outer = TRUE)
+daybee_lst = FirstDanceCond(dta = hd,
+                        subset = day %in% example_day & ID %in% example_bee)  
+# Plot the example subset
+Plt_subs(subs = daybee_lst$example_subs,
+         angle_for = "sun",
+         cond_cols = cond_cols,
+         title = paste("First dance for", example_bee, "for each condition on", example_day)
+         )
 ```
 At least for this subset, the dances follow the expected pattern.
 For both vertical and horizontal dances, the average waggle run aligns with 
@@ -335,222 +143,10 @@ We can also plot these dances with the feeder direction subtracted,
 so that the feeder falls at 0°.
 
 ```{r feeder-angle-examples}
-example_day  = unique(hd$day)[length(unique(hd$day))]#last day
-example_bee = "22b"
-
-# example_day = "20250127"
-subs_day = subset(hd, day %in% example_day & ID %in% example_bee)
-#find first dance for each condition on 2025.01.27
-example_lst = list()
-for(stim in unique(hd$condition))
-{
-example_lst[[stim]] = with(subset(subs_day, condition %in% stim),
-                           unique(ID_d)[1])
-}
-#inspect
-print(paste("First dance for", example_bee, "for each condition on", example_day))
-print(t(t(unlist(lapply(X = example_lst, FUN = as.character)))))
-
-example_subs = subset(x = hd,
-                      ID_d %in% paste(unlist(example_lst))
-                      )
-
-par(mfrow = c(2,3), mar = c(0,0,0,0))
-
-if(with(example_subs, any(condition %in% "vertical")))
-{
-  with(subset(example_subs,
-            subset = condition %in% 'vertical'),
-     {
-  PCfun(angles = deg(feeder_angle),
-        col = 'darkgreen',
-        shrink = 1.5,
-        title = paste(unique(ID), unique(time), unique(condition)))
-  lines(
-    x = c(0, sin(rad(sun_az))),
-    y = c(0, cos(rad(sun_az))),
-    col = adjustcolor('yellow3', alpha.f = 0.5),
-    lwd = 3
-  )
-     }
-)
-
-  }else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no vertical data found")
-}
-
-if(with(example_subs, any(condition %in% "horizontal")))
-{
-with(subset(example_subs,
-            subset = condition %in% 'horizontal'),
-     {
-PCfun(angles = deg(feeder_angle),
-      col = 'darkred',
-      shrink = 1.5,
-      title = paste(unique(ID), unique(time), unique(condition)))
-  lines(
-    x = c(0, sin(rad(sun_az))),
-    y = c(0, cos(rad(sun_az))),
-    col = adjustcolor('yellow3', alpha.f = 0.5),
-    lwd = 3
-  )
-     }
-)
-
-  }else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no horizontal data found")
-}
-
-
-if(with(example_subs, any(condition %in% "tilted")))
-{
-with(subset(example_subs,
-            subset = condition %in% 'tilted'),
-     {
-PCfun(angles = deg(feeder_angle),
-      col = 'seagreen',
-      shrink = 1.5,
-      title = paste(unique(ID), unique(time), unique(condition)))
-  lines(
-    x = c(0, sin(rad(sun_az))),
-    y = c(0, cos(rad(sun_az))),
-    col = adjustcolor('yellow3', alpha.f = 0.5),
-    lwd = 3
-  )
-     }
-)
-}else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no tilted data found")
-}
-
-if(with(example_subs, any(condition %in% "antisolar")))
-{
-with(subset(example_subs,
-            subset = condition %in% 'antisolar'),
-     {
-PCfun(angles = deg(feeder_angle),
-      col = 'cyan4',
-      shrink = 1.5,
-      title = paste(unique(ID), unique(time), unique(condition)))
-  lines(
-    x = c(0, sin(rad(sun_az))),
-    y = c(0, cos(rad(sun_az))),
-    col = adjustcolor('yellow3', alpha.f = 0.5),
-    lwd = 3
-  )
-     }
-)
-
-
-  }else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no antisolar data found")
-}
-
-
-if(with(example_subs, any(condition %in% "solar")))
-{
-with(subset(example_subs,
-            subset = condition %in% 'solar'),
-     {
-PCfun(angles = deg(feeder_angle),
-      col = 'blue4',
-      shrink = 1.5,
-      title = paste(unique(ID), unique(time), unique(condition)))
-  lines(
-    x = c(0, sin(rad(sun_az))),
-    y = c(0, cos(rad(sun_az))),
-    col = adjustcolor('yellow3', alpha.f = 0.5),
-    lwd = 3
-  )
-     }
-)
-
-  }else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no solar data found")
-}
-
-
-if(with(example_subs, any(condition %in% "zenith")))
-{
-with(subset(example_subs,
-            subset = condition %in% 'zenith'),
-     {
-PCfun(angles = deg(feeder_angle),
-      col = 'skyblue3',
-      shrink = 1.5,
-      title = paste(unique(ID), unique(time), unique(condition)))
-  lines(
-    x = c(0, sin(rad(sun_az))),
-    y = c(0, cos(rad(sun_az))),
-    col = adjustcolor('yellow3', alpha.f = 0.5),
-    lwd = 3
-  )
-     }
-)
-
-}else
-{
-  plot(NULL,
-       axes = F,
-       xlim = c(0,0),
-       ylim = c(0,0),
-       xlab = '',
-       ylab = '',
-       main = "")
-  legend(x = 'center',
-         legend = "no zenith data found")
-}
-
-
-mtext(text = paste("Feeder angles for 1st dance of", example_bee, "for each condition on", example_day),
-      side = 3,
-      line = -1.5,
-      outer = TRUE)
+#Plot using the feeder as the frame of reference
+Plt_subs(subs = daybee_lst$example_subs,
+         angle_for = "feeder",
+         title = paste("Feeder angles for 1st dance of", example_bee, "for each condition on", example_day))
 ```
 
 
@@ -585,7 +181,7 @@ if(with(lowel_subs, any(condition %in% "vertical")))
             subset = condition %in% 'vertical'),
      {
   PCfun(angles = deg(feeder_angle),
-        col = 'darkgreen',
+        col = cond_cols$vertical,
         shrink = 1.5,
         title = paste(unique(ID), unique(time), unique(condition)))
   lines(
@@ -616,7 +212,7 @@ with(subset(lowel_subs,
             subset = condition %in% 'horizontal'),
      {
 PCfun(angles = deg(feeder_angle),
-      col = 'darkred',
+      col = cond_cols$horizontal,
       shrink = 1.5,
       title = paste(unique(ID), unique(time), unique(condition)))
   lines(
@@ -648,7 +244,7 @@ with(subset(lowel_subs,
             subset = condition %in% 'tilted'),
      {
 PCfun(angles = deg(feeder_angle),
-      col = 'seagreen',
+      col = cond_cols$tilted,
       shrink = 1.5,
       title = paste(unique(ID), unique(time), unique(condition)))
   lines(
@@ -678,7 +274,7 @@ with(subset(lowel_subs,
             subset = condition %in% 'antisolar'),
      {
 PCfun(angles = deg(feeder_angle),
-      col = 'cyan4',
+      col = cond_cols$antisolar,
       shrink = 1.5,
       title = paste(unique(ID), unique(time), unique(condition)))
   lines(
@@ -711,7 +307,7 @@ with(subset(lowel_subs,
             subset = condition %in% 'solar'),
      {
 PCfun(angles = deg(feeder_angle),
-      col = 'blue4',
+      col = cond_cols$solar,
       shrink = 1.5,
       title = paste(unique(ID), unique(time), unique(condition)))
   lines(
@@ -743,7 +339,7 @@ with(subset(lowel_subs,
             subset = condition %in% 'zenith'),
      {
 PCfun(angles = deg(feeder_angle),
-      col = 'skyblue3',
+      col = cond_cols$zenith,
       shrink = 1.5,
       title = paste(unique(ID), unique(time), unique(condition)))
   lines(
@@ -806,7 +402,7 @@ if(with(medel_subs, any(condition %in% "vertical")))
             subset = condition %in% 'vertical'),
      {
   PCfun(angles = deg(feeder_angle),
-        col = 'darkgreen',
+        col = cond_cols$vertical,
         shrink = 1.5,
         title = paste(unique(ID), unique(time), unique(condition)))
   lines(
@@ -837,7 +433,7 @@ with(subset(medel_subs,
             subset = condition %in% 'horizontal'),
      {
 PCfun(angles = deg(feeder_angle),
-      col = 'darkred',
+      col = cond_cols$horizontal,
       shrink = 1.5,
       title = paste(unique(ID), unique(time), unique(condition)))
   lines(
@@ -869,7 +465,7 @@ with(subset(medel_subs,
             subset = condition %in% 'tilted'),
      {
 PCfun(angles = deg(feeder_angle),
-      col = 'seagreen',
+      col = cond_cols$tilted,
       shrink = 1.5,
       title = paste(unique(ID), unique(time), unique(condition)))
   lines(
@@ -899,7 +495,7 @@ with(subset(medel_subs,
             subset = condition %in% 'antisolar'),
      {
 PCfun(angles = deg(feeder_angle),
-      col = 'cyan4',
+      col = cond_cols$antisolar,
       shrink = 1.5,
       title = paste(unique(ID), unique(time), unique(condition)))
   lines(
@@ -932,7 +528,7 @@ with(subset(medel_subs,
             subset = condition %in% 'solar'),
      {
 PCfun(angles = deg(feeder_angle),
-      col = 'blue4',
+      col = cond_cols$solar,
       shrink = 1.5,
       title = paste(unique(ID), unique(time), unique(condition)))
   lines(
@@ -964,7 +560,7 @@ with(subset(medel_subs,
             subset = condition %in% 'zenith'),
      {
 PCfun(angles = deg(feeder_angle),
-      col = 'skyblue3',
+      col = cond_cols$zenith,
       shrink = 1.5,
       title = paste(unique(ID), unique(time), unique(condition)))
   lines(
@@ -1003,16 +599,6 @@ mtext(text = paste("Feeder angles for medium sun elevations"),
 
 
 ```{r low-elevation-examples}
-#dances for each condition
-# for(stim in unique(hd$stimulus))
-# {
-# higel_lst[[stim]] = with(subset(hd, stimulus %in% stim &
-#                                   sun_el > 75 
-#                                   ),
-#                            unique(ID_d))
-# }
-# #inspect
-# sapply(higel_lst, length)# no low elevation for dome 
 
 
 higel_lst = list()
@@ -1038,7 +624,7 @@ if(with(higel_subs, any(condition %in% "vertical")))
             subset = condition %in% 'vertical'),
      {
   PCfun(angles = deg(feeder_angle),
-        col = 'darkgreen',
+        col = cond_cols$vertical,
         shrink = 1.5,
         title = paste(unique(ID), unique(time), unique(condition)))
   lines(
@@ -1069,7 +655,7 @@ with(subset(higel_subs,
             subset = condition %in% 'horizontal'),
      {
 PCfun(angles = deg(feeder_angle),
-      col = 'darkred',
+      col = cond_cols$horizontal,
       shrink = 1.5,
       title = paste(unique(ID), unique(time), unique(condition)))
   lines(
@@ -1101,7 +687,7 @@ with(subset(higel_subs,
             subset = condition %in% 'tilted'),
      {
 PCfun(angles = deg(feeder_angle),
-      col = 'seagreen',
+      col = cond_cols$tilted,
       shrink = 1.5,
       title = paste(unique(ID), unique(time), unique(condition)))
   lines(
@@ -1131,7 +717,7 @@ with(subset(higel_subs,
             subset = condition %in% 'antisolar'),
      {
 PCfun(angles = deg(feeder_angle),
-      col = 'cyan4',
+      col = cond_cols$antisolar,
       shrink = 1.5,
       title = paste(unique(ID), unique(time), unique(condition)))
   lines(
@@ -1164,7 +750,7 @@ with(subset(higel_subs,
             subset = condition %in% 'solar'),
      {
 PCfun(angles = deg(feeder_angle),
-      col = 'blue4',
+      col = cond_cols$solar,
       shrink = 1.5,
       title = paste(unique(ID), unique(time), unique(condition)))
   lines(
@@ -1196,7 +782,7 @@ with(subset(higel_subs,
             subset = condition %in% 'zenith'),
      {
 PCfun(angles = deg(feeder_angle),
-      col = 'skyblue3',
+      col = cond_cols$zenith,
       shrink = 1.5,
       title = paste(unique(ID), unique(time), unique(condition)))
   lines(
