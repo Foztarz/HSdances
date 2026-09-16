@@ -82,16 +82,32 @@ print(hd)
 Ensure that each variable has the correct data format for subsequent analysis.
 
 ```{r Data formatting}
-hd = within(hd,
-            {
-              ID = as.factor(ID) # bee identifier as a factor
-              ID_d = as.factor(ID_d) # beedance identifier as a factor
-              day = as.factor(day) # date as a factor
-              sast_time = as.POSIXct(sast_time,
-                                     tz = "Africa/Johannesburg", 
-                                      format = "%Y-%m-%d %H:%M:%OS")#South African Standard time
-            }
-)
+hd = within(hd, {
+  ID = as.factor(ID) # bee identifier as a factor
+  ID_d = as.factor(ID_d) # beedance identifier as a factor
+  day = as.factor(day) # date as a factor
+  condition = factor(
+    condition,
+    levels = c(
+      "vertical",
+      "horizontal",
+      "tilted",
+      "solar",
+      "antisolar",
+      "zenith"
+    )
+  ) #set up conditions as a factor in preferred order
+  sast_time = as.POSIXct(
+    sast_time,
+    tz = "Africa/Johannesburg",
+    format = "%Y-%m-%d %H:%M:%OS"
+  ) #South African Standard time
+  cangle = circular(
+    feeder_angle,
+    template = 'none'
+  ) #circular formatted angle for circular functions
+})
+
 u_id = with(hd, unique(ID)) #unique dancers
 length(u_id)#40 bees
 u_id_d = with(hd, unique(ID_d)) # unique beedances
@@ -484,3 +500,144 @@ A simple description could be achieved with a piecewise regression,
 with a constant rate of change in solar azimuth between 07:00 and 11:00, 
 another (faster) rate of change between 11:00 and 13:00, 
 and likely the same morning rate of change repeated again between 13:00 and 19:00.
+
+# Calculate dance means
+
+
+```{r dance-mean-vectors}
+#calculate mean vectors
+mean_vectors = aggregate(cangle~ID_d+ #for each dance 
+                           ID+condition+sun_az+sun_el + # also save these variables
+                           time+day,
+                         data = hd,
+                         FUN = rho.circular
+)
+#correct names
+mean_vectors = within(mean_vectors,
+                      {mean_vector = cangle; rm(cangle)} # angle now indicates a mean vector, not an angle
+)
+#add kappa
+mle_estimates = aggregate(cangle~ID_d+ #for each dance 
+                           ID+condition+sun_az+sun_el + # also save these variables
+                           time+day,
+                          data = hd,
+                          FUN = MLE_est
+)
+#Rayleigh tests
+rayleigh_tests = aggregate(cangle~ID_d+ #for each dance 
+                           ID+condition+sun_az+sun_el + # also save these variables
+                           time+day,
+                          data = hd,
+                          FUN = Rayleigh_p
+                          )
+
+#correct names
+rayleigh_tests = within(rayleigh_tests,
+                      {p_rayleigh = cangle; rm(cangle)} # angle now indicates a mean vector, not an angle
+)
+
+#add to the summary table and 
+#calculate inverse softplus kappa
+mean_vectors = within(mean_vectors,
+                      {
+                        mu = deg(mle_estimates$cangle[,'mu'])
+                        kappa = mle_estimates$cangle[,'kappa']
+                      }
+)
+#check how many dances would count as "oriented"
+print(paste("Rayleigh p<0.05, proportion of all dances:") )
+#all dances
+with(rayleigh_tests,
+     print( mean(p_rayleigh <0.05) *100,digits = 2)
+     )
+
+#by condition
+for(cond in levels(rayleigh_tests$condition))
+{
+  
+print(paste("Rayleigh p<0.05, proportion of", cond, "dances:") )
+with(subset(rayleigh_tests,
+            subset = condition %in% cond),
+     print(mean(p_rayleigh <0.05) *100,digits = 2)
+     )
+}
+
+```
+
+
+```{r Plot mean vectors, echo=TRUE}
+par(mar = c(3, 3, 0, 0))
+boxplot(mean_vector~condition,
+        data = mean_vectors,
+        ylim = c(0,1),
+        col = adjustcolor(cond_cols, alpha.f = 0.1),
+        border = 'gray50',
+        outline = FALSE)
+stripchart(mean_vector~condition,
+           data = mean_vectors,
+           add = TRUE,
+           vertical = TRUE,
+           method = 'jitter',
+           col = adjustcolor(cond_cols, alpha.f = 0.5),
+           bg = gray(level = 0,
+                     alpha = 0.1),
+           pch = 21)
+#Identify stimuli
+abline(h = c(0,1))
+```
+
+
+```{r summarise-mean-vectors}
+mv_agg =  aggregate(mean_vector~condition,
+           data = mean_vectors,
+           FUN = quantile,
+           probs = c(0.5, 0.25, 0.75))
+rownames(mv_agg) = with(hd, levels(condition))
+mv_agg = within(mv_agg, rm(condition))
+mv_agg = t(apply(mv_agg, MARGIN = 1, unlist))
+print(mv_agg,
+  digits = 3)
+```
+
+
+```{r mean-angle-summary}
+par(mfrow = c(2,3), 
+    mar = c(0,0,0,0),
+    oma = c(2,0,0,0))
+for(cond in levels(hd$condition))
+{
+PCfun(angles = subset(mean_vectors, 
+                      subset = condition %in% cond)$mu,
+      col = cond_cols[[cond]],
+      shrink = 2.8,
+      title = cond)
+}
+mtext(text = "mean dance angles relative to feeder",
+      side = 1,
+      line = 0.2,
+      outer = TRUE)
+
+for(tod in c('sun_el < 15', 
+             'sun_el < 45 & sun_el > 30',
+             'sun_el > 75'
+             )
+    )
+{
+  for(cond in levels(hd$condition))
+{
+PCfun(angles = subset(mean_vectors, 
+                      subset = condition %in% cond &
+                        str2lang(tod)
+                      )$mu,
+      col = cond_cols[[cond]],
+      shrink = 2.8,
+      title = cond)
+}
+mtext(text = paste(tod, "mean dance angles"),
+      side = 1,
+      line = 0.2,
+      outer = TRUE)
+  
+}
+
+```
