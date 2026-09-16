@@ -25,7 +25,7 @@ editor_options:
 - Reformat +
 - Select dances of interest +
 - Plot dances of interest +
-- Feeder angle plotting function
+- Feeder angle plotting function +
 - Solar ephemeris plots
 - Elevation-accuracy plots
 
@@ -227,7 +227,7 @@ Plt_subs(
 ## Medium elevation
 
 
-```{r low-elevation-examples}
+```{r medium-elevation-examples}
 # Select the first dance for each condition at medium sun elevation.
 print(paste("First dance for medium sun elevations"))
 medel_subs = FirstDanceCond(
@@ -248,7 +248,7 @@ Plt_subs(
 ## High elevation
 
 
-```{r low-elevation-examples}
+```{r high-elevation-examples}
 # Select the first dance for each condition at high sun elevation.
 print(paste("First dance for high sun elevations"))
 higel_subs = FirstDanceCond(
@@ -565,7 +565,7 @@ with(subset(rayleigh_tests,
 ```
 
 
-```{r Plot mean vectors, echo=TRUE}
+```{r plot-mean-vector-lengths}
 par(mar = c(3, 3, 0, 0))
 boxplot(mean_vector~condition,
         data = mean_vectors,
