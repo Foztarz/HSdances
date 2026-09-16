@@ -92,6 +92,8 @@ hd = within(hd,
                                       format = "%Y-%m-%d %H:%M:%OS")#South African Standard time
             }
 )
+u_id = with(hd, unique(ID)) #unique dancers
+length(u_id)#40 bees
 u_id_d = with(hd, unique(ID_d)) # unique beedances
 length(u_id_d)#377 beedances
 ```
@@ -191,10 +193,10 @@ PCfun(angles = dance_sun_angle,
 }
 
 
-if(with(example_subs, any(condition %in% "deg_10")))
+if(with(example_subs, any(condition %in% "tilted")))
 {
 with(subset(example_subs,
-            subset = condition %in% 'deg_10'),
+            subset = condition %in% 'tilted'),
      {
 PCfun(angles = dance_sun_angle,
       col = 'seagreen',
@@ -218,7 +220,7 @@ PCfun(angles = dance_sun_angle,
        ylab = '',
        main = "")
   legend(x = 'center',
-         legend = "no 10° tilted data found")
+         legend = "no tilted data found")
 }
 
 if(with(example_subs, any(condition %in% "antisolar")))
@@ -418,10 +420,10 @@ PCfun(angles = deg(feeder_angle),
 }
 
 
-if(with(example_subs, any(condition %in% "deg_10")))
+if(with(example_subs, any(condition %in% "tilted")))
 {
 with(subset(example_subs,
-            subset = condition %in% 'deg_10'),
+            subset = condition %in% 'tilted'),
      {
 PCfun(angles = deg(feeder_angle),
       col = 'seagreen',
@@ -445,7 +447,7 @@ PCfun(angles = deg(feeder_angle),
        ylab = '',
        main = "")
   legend(x = 'center',
-         legend = "no 10° tilted data found")
+         legend = "no tilted data found")
 }
 
 if(with(example_subs, any(condition %in% "antisolar")))
@@ -640,10 +642,10 @@ PCfun(angles = deg(feeder_angle),
 }
 
 
-if(with(lowel_subs, any(condition %in% "deg_10")))
+if(with(lowel_subs, any(condition %in% "tilted")))
 {
 with(subset(lowel_subs,
-            subset = condition %in% 'deg_10'),
+            subset = condition %in% 'tilted'),
      {
 PCfun(angles = deg(feeder_angle),
       col = 'seagreen',
@@ -667,7 +669,7 @@ PCfun(angles = deg(feeder_angle),
        ylab = '',
        main = "")
   legend(x = 'center',
-         legend = "no 10° tilted data found")
+         legend = "no tilted data found")
 }
 
 if(with(lowel_subs, any(condition %in% "antisolar")))
@@ -861,10 +863,10 @@ PCfun(angles = deg(feeder_angle),
 }
 
 
-if(with(medel_subs, any(condition %in% "deg_10")))
+if(with(medel_subs, any(condition %in% "tilted")))
 {
 with(subset(medel_subs,
-            subset = condition %in% 'deg_10'),
+            subset = condition %in% 'tilted'),
      {
 PCfun(angles = deg(feeder_angle),
       col = 'seagreen',
@@ -888,7 +890,7 @@ PCfun(angles = deg(feeder_angle),
        ylab = '',
        main = "")
   legend(x = 'center',
-         legend = "no 10° tilted data found")
+         legend = "no tilted data found")
 }
 
 if(with(medel_subs, any(condition %in% "antisolar")))
@@ -1093,10 +1095,10 @@ PCfun(angles = deg(feeder_angle),
 }
 
 
-if(with(higel_subs, any(condition %in% "deg_10")))
+if(with(higel_subs, any(condition %in% "tilted")))
 {
 with(subset(higel_subs,
-            subset = condition %in% 'deg_10'),
+            subset = condition %in% 'tilted'),
      {
 PCfun(angles = deg(feeder_angle),
       col = 'seagreen',
@@ -1120,7 +1122,7 @@ PCfun(angles = deg(feeder_angle),
        ylab = '',
        main = "")
   legend(x = 'center',
-         legend = "no 10° tilted data found")
+         legend = "no tilted data found")
 }
 
 if(with(higel_subs, any(condition %in% "antisolar")))

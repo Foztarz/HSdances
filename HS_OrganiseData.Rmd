@@ -56,7 +56,8 @@ Load the raw data exported from Excel to `csv`.
 path_file = file.path("0Data",
                       c(
                         "V_uncalib.csv",#vertical dances (not yet calibrated0)
-                        "H_calib.csv"#horizontal and dome calibrated dances 
+                        "H_calib.csv",#horizontal and dome calibrated dances 
+                        "T_calib.csv"#tilted-above-horizontal calibrated dances 
                         )
 )
 if(any(!file.exists(path_file)))
@@ -72,15 +73,39 @@ hd = lapply(X = path_file,
 Check that all column names match across files loaded.
 ```{r check-datasets}
 nm_vert = names(hd[[1]])
-nm_calib = names(hd[[2]])
-if(any(!(nm_calib %in% nm_vert) |
-       !(nm_vert %in% nm_calib))
+nm_horiz = names(hd[[2]])
+nm_tilt = names(hd[[3]])
+if(any(!(nm_horiz %in% nm_vert) |
+       !(nm_vert %in% nm_horiz) |
+       !(nm_tilt %in% nm_vert) |
+       !(nm_vert %in% nm_tilt) 
+       )
    )
 {
   message("horizontal columns not in vertical")
-print(nm_calib[!(nm_calib %in% nm_vert)])
+print(nm_horiz[!(nm_horiz %in% nm_vert)])
   message("vertical columns not in horizontal")
-print(nm_vert[!(nm_vert %in% nm_calib)])
+print(nm_vert[!(nm_vert %in% nm_horiz)])
+message("vertical columns not in tilted")
+print(nm_vert[!(nm_vert %in% nm_tilt)])
+message("tilted columns not in vertical")
+print(nm_tilt[!(nm_tilt %in% nm_vert)])
+message("removing columns not in tilted")
+hd[[1]] = within(hd[[1]], {
+  rm(list = paste(nm_vert[!(nm_vert %in% nm_tilt)]))
+})
+hd[[2]] = within(hd[[2]], {
+  rm(list = paste(nm_vert[!(nm_vert %in% nm_tilt)]))
+})
+message("removing columns of tilted not in vertical")
+hd[[3]] = within(hd[[3]], {
+  rm(list = paste(nm_tilt[!(nm_tilt %in% nm_vert)]))
+})
+print("mismatches remaining: ")
+print(names(hd[[1]])[!(names(hd[[1]]) %in% nm_tilt)])
+print(names(hd[[2]])[!(names(hd[[2]]) %in% nm_tilt)])
+print(names(hd[[3]])[!(names(hd[[3]]) %in% nm_vert)])
+print(names(hd[[3]])[!(names(hd[[3]]) %in% nm_horiz)])
 }else
 {print("columns match in all CSVs")}
 ```
@@ -253,7 +278,7 @@ nm_num = c(
   # "calibration_quality_flag",
   "start_x",
   "start_y",
-  "calibration_R",
+##  "calibration_R", ##Removed temporarily
   "declination_deg",
   # "video_file",
   "day"
@@ -280,6 +305,8 @@ There appears to have been an autofill error in condition labelling.
 Rename all unexpected stimuli to `deg_10`, 10° above horizontal.
 *20260818* Has this been fixed? Could skip.
 *20260825* Currently no `deg_10` data, will keep in case this is added later.
+*20260916* There is now a variety of tilted data at two different angles,
+all now assigned as "tilted".
 
 ```{r reformat-condition}
 hd = within(hd,
@@ -291,13 +318,13 @@ hd = within(hd,
                                 antisolar = "antisolar",
                                 solar = "solar",
                                 zenith = "zenith",
-                                deg_10 = "deg_10",
-                                "deg_10")#otherwise always deg_10
+                                deg_10 = "tilted",
+                                "tilted")#otherwise always deg_10
             }
             )
-#is there any data for deg_10?
-with(subset(hd, condition %in% "deg_10"),
-     summary(video_angle_deg))
+#How many dances were neither vertical or horizontal?
+with(subset(hd, condition %in% "tilted"),
+     {length(unique(ID_d))} )
 
 with(hd, unique(condition))
 ```
@@ -610,7 +637,7 @@ calc_expected_time =  function(cond,
     switch(EXPR = cond, #by condition label
       vertical = sast, #these video names don't have a timestamp
       horizontal = sast,#these video names don't have a timestamp
-      deg_10 = sast,#these video names don't have a timestamp
+      tilted = sast,#these video names don't have a timestamp
       antisolar = ts + 60 * 60, #these time stamps are in CET
       solar = ts + 60 * 60, #these time stamps are in CET
       zenith = ts + 60 * 60, #these time stamps are in CET
@@ -1296,10 +1323,10 @@ PCfun(angles = dance_sun_angle,
 }
 
 
-if(with(example_subs, any(condition %in% "deg_10")))
+if(with(example_subs, any(condition %in% "tilted")))
 {
 with(subset(example_subs,
-            subset = condition %in% 'deg_10'),
+            subset = condition %in% 'tilted'),
      {
 PCfun(angles = dance_sun_angle,
       col = 'seagreen',
@@ -1323,7 +1350,7 @@ PCfun(angles = dance_sun_angle,
        ylab = '',
        main = "")
   legend(x = 'center',
-         legend = "no 10° tilted data found")
+         legend = "no tilted data found")
 }
 
 if(with(example_subs, any(condition %in% "antisolar")))
@@ -1566,10 +1593,10 @@ PCfun(angles = deg(feeder_angle),
 }
 
 
-if(with(example_subs, any(condition %in% "deg_10")))
+if(with(example_subs, any(condition %in% "tilted")))
 {
 with(subset(example_subs,
-            subset = condition %in% 'deg_10'),
+            subset = condition %in% 'tilted'),
      {
 PCfun(angles = deg(feeder_angle),
       col = 'seagreen',
@@ -1593,7 +1620,7 @@ PCfun(angles = deg(feeder_angle),
        ylab = '',
        main = "")
   legend(x = 'center',
-         legend = "no 10° tilted data found")
+         legend = "no tilted data found")
 }
 
 if(with(example_subs, any(condition %in% "antisolar")))
