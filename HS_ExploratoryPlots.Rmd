@@ -623,15 +623,34 @@ for(tod in c('sun_el < 15',
              )
     )
 {
+  
+  # tod_filter = eval(str2lang(tod), envir = mean_vectors)
   for(cond in levels(hd$condition))
 {
-PCfun(angles = subset(mean_vectors, 
+    cond_tod_mu = subset(mean_vectors, 
                       subset = condition %in% cond &
-                        str2lang(tod)
-                      )$mu,
+                        eval(str2lang(tod))
+                      )$mu
+    if(length(cond_tod_mu)>0)
+    {
+PCfun(angles = cond_tod_mu,
       col = cond_cols[[cond]],
       shrink = 2.8,
       title = cond)
+    }else
+    {
+       plot(
+        NULL,
+        axes = FALSE,
+        xlim = c(0, 0),
+        ylim = c(0, 0),
+        xlab = "",
+        ylab = "",
+        main = ""
+      )
+      legend(x = "center",
+             legend = paste("no", cond, "data found"))
+    }
 }
 mtext(text = paste(tod, "mean dance angles"),
       side = 1,
