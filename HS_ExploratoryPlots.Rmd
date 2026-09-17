@@ -271,6 +271,63 @@ Plt_subs(
 Using the vertical dances, it should be possible to identify the solar ephemeris 
 functions used by those individuals that danced repeatedly throughout the day.
 
+First set up the reference solar ephemeris for all times on a median day.
+
+```{r generate-ephemeris}
+hive = r"(25° 34' 18" S, 31° 10' 48" E)" # N.B. this string contains literal " so needs wrapping in r"()"
+
+# Define coordinates (lon, lat)
+hive = Dms2decimal(hive) 
+
+
+# sequence from times from 1h before 1st experiment to 1h after last, by 5 minutes
+time_seq = seq(from = min(exper_times)-60*60,
+               to  = max(exper_times)+60*60,
+               by = 5*60)
+med_date = with(hd, median(as.numeric(paste(day))))
+time_code_sast = as.POSIXct(paste(med_date, "00:00:00"),#midnight on median day 
+                                      tz = "Africa/Johannesburg", 
+                                      format = "%Y%m%d %H:%M:%OS") + #South African Standard time
+              time_seq
+#convert to UTC
+time_code_utc = as.POSIXct(time_code_sast, tz = "UTC")#UTC time
+
+saz_seq = mapply(
+                   FUN = GetSaz,
+                   tm = time_code_utc,
+                   lon = hive['longitude'],
+                   lat = hive['latitude']
+                   )
+par(mfrow = c(1,1))
+#plot all vertical dances
+
+plot(x = GetToD(time_code_sast,
+               tz = 'UTC'),
+    y = Mod360.180(saz_seq),
+    xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
+    ylim = c(-1,1)*180,
+    xlab = 'UTC',
+    ylab = 'Sun Azimuth',
+    main = 'Median Ephemeris',
+    type = 'l',
+    col = 'yellow3',
+    lwd = 5
+)
+abline(h = -4:4*c(45),
+      lty = 2) #limits
+abline(v =  12*60*60, #as.numeric(as.POSIXct("1970-01-01 12:00:00 UTC"))
+      lty = 3)
+
+#add lines indicating the approximate expected start and end of each experiment
+abline(v = exper_times,
+       col = time_cols,
+       lty = c(1,2),
+       lwd = 2
+       )
+
+
+```
+
 
 ## Check dance times
 Blue 22 and blue 66 both danced very frequently, so we can start by checking when they danced.
@@ -278,20 +335,29 @@ Blue 22 and blue 66 both danced very frequently, so we can start by checking whe
 
 ```{r vertical-dance-times}
 
+
 par(mfrow = c(1,1))
 #plot all vertical dances
+plot(x = GetToD(time_code_sast,
+               tz = 'UTC'),
+    y = Mod360.180(saz_seq),
+    xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
+    ylim = c(-1,1)*180,
+    xlab = 'UTC',
+    ylab = 'Sun Azimuth',
+    main = 'Vertical dances',
+    type = 'l',
+    col = 'yellow3',
+    lwd = 7
+)
+
 with(subset(hd, condition %in% c("vertical") ),
      {
-     plot(x = GetToD(sast_time,
+     points(x = GetToD(sast_time,
                      tz = 'UTC'),
           y = Mod360.180(sun_az),
-          xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
-          ylim = c(-1,1)*180,
-          xlab = 'UTC',
-          ylab = 'Sun Azimuth',
-          main = 'Vertical dances',
           pch = 3,#cross
-          col = 'gray50'
+          col = 'gray25'
      )
      abline(h = -4:4*c(45),
             lty = 2) #limits
@@ -332,7 +398,7 @@ legend(x = 'topright',
                   "other"),
        col=  c("cyan",
                "cadetblue",
-               "gray50"),
+               "gray25"),
        pch = c(19, 19,
                3)
 )
@@ -349,21 +415,29 @@ the most dances during the rapid azimuth change period in the middle of the day.
 
 par(mfrow = c(1,1))
 #plot all vertical dances
-with(hd,
+plot(x = GetToD(time_code_sast,
+               tz = 'UTC'),
+    y = Mod360.180(saz_seq),
+    xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
+    ylim = c(-1,1)*180,
+    xlab = 'UTC',
+    ylab = 'Sun Azimuth',
+    main = 'Blue 22, Vertical Dances',
+    type = 'l',
+    col = 'yellow3',
+    lwd = 7
+)
+with(subset(hd, condition %in% c("vertical") &
+              ID %in% c('22b')
+            ),
      {
-     plot(x = sort(GetToD(sast_time,
+     points(x = sort(GetToD(sast_time,
                      tz = 'UTC')),
           y = Mod360.180(sun_az)[order(GetToD(sast_time,
                      tz = 'UTC'))],
-          xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
-          ylim = c(-1,1)*180,
-          xlab = 'UTC',
-          ylab = 'Sun Azimuth',
-          main = 'Blue 22, Vertical Dances',
-          type = 'b',
           pch = 3,#cross
-          lwd = 5,
-          col = 'gray50'
+          lwd = 3,
+          col = 'gray25'
      )
      abline(h = -4:4*c(45),
             lty = 2) #limits
@@ -400,7 +474,7 @@ legend(
     "Sun azimuth",
     "Implied azimuth"
   ),
-  col = c("gray50", "cyan"),
+  col = c("gray25", "cyan"),
   pch = c(3, 19),
   cex = 0.7
 )
@@ -413,21 +487,27 @@ How similar is the population?
 
 par(mfrow = c(1,1))
 #plot all vertical dances
+plot(x = GetToD(time_code_sast,
+               tz = 'UTC'),
+    y = Mod360.180(saz_seq),
+    xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
+    ylim = c(-1,1)*180,
+    xlab = 'UTC',
+    ylab = 'Sun Azimuth',
+    main = 'Blue 22, Vertical Dances',
+    type = 'l',
+    col = 'yellow3',
+    lwd = 7
+)
 with(hd,
      {
-     plot(x = sort(GetToD(sast_time,
+     points(x = sort(GetToD(sast_time,
                      tz = 'UTC')),
           y = Mod360.180(sun_az)[order(GetToD(sast_time,
                      tz = 'UTC'))],
-          xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
-          ylim = c(-1,1)*180,
-          xlab = 'UTC',
-          ylab = 'Sun Azimuth',
-          main = 'Blue 22, Vertical Dances',
-          type = 'b',
           pch = 3,#cross
-          lwd = 5,
-          col = 'gray50'
+          lwd = 3,
+          col = 'gray25'
      )
      abline(h = -4:4*c(45),
             lty = 2) #limits
@@ -483,8 +563,8 @@ legend(
     "B22",
     "Other bees"
   ),
-  col = c("gray50", "cyan", "blue"),
-  pch = c(3, 19),
+  col = c("gray25", "cyan", "blue"),
+  pch = c(3, 19, 19),
   cex = 0.7
 )
 
