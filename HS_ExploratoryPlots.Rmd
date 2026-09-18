@@ -776,6 +776,9 @@ with(subset(rayleigh_tests,
 
 ```
 
+## Consistency
+
+### By condition
 
 ```{r plot-mean-vector-lengths}
 par(mar = c(3, 3, 0, 0))
@@ -811,6 +814,42 @@ print(mv_agg,
   digits = 3)
 ```
 
+### By time of day
+
+```{r plot-mean-vector-lengths}
+# boxplot(mean_vector~time,
+#         data = subset(mean_vectors,
+#                       condition %in% "vertical"),
+#         ylim = c(0,1),
+#         col = adjustcolor("cadetblue", alpha.f = 0.1),
+#         border = 'gray50',
+#         outline = FALSE)
+plot(
+  mean_vector ~ GetToD(as.POSIXct(
+    x = paste(day, time),
+    tz = "Africa/Johannesburg",
+    format = "%Y%m%d %H:%M:%OS"
+  ),
+  tz = "UTC"),
+  data = subset(
+    mean_vectors,
+    condition %in% "vertical"
+  ),
+  xlim = range(exper_times) + 60*60*c(-1,1),#experiment range +-1h
+  # ylim = c(0, 1)+ c(1,0)*0.5,
+  xlab = "Time of Day",
+  ylab = "Mean vector length",
+  main = "Vertical Dance Consistency",
+  col = adjustcolor(
+    cond_cols$vertical,
+    alpha.f = 0.5
+  ),
+  bg = gray(level = 0, alpha = 0.1),
+  pch = 21
+)
+#Identify stimuli
+abline(h = c(0, 1))
+```
 
 ```{r mean-angle-summary}
 par(mfrow = c(2,3), 
