@@ -306,7 +306,7 @@ plot(x = GetToD(time_code_sast,
     y = Mod360.180(saz_seq),
     xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
     ylim = c(-1,1)*180,
-    xlab = 'UTC',
+    xlab = 'Time of Day',
     ylab = 'Sun Azimuth',
     main = 'Median Ephemeris',
     type = 'l',
@@ -343,7 +343,7 @@ plot(x = GetToD(time_code_sast,
     y = Mod360.180(saz_seq),
     xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
     ylim = c(-1,1)*180,
-    xlab = 'UTC',
+    xlab = 'Time of Day',
     ylab = 'Sun Azimuth',
     main = 'Vertical dances',
     type = 'l',
@@ -420,7 +420,7 @@ plot(x = GetToD(time_code_sast,
     y = Mod360.180(saz_seq),
     xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
     ylim = c(-1,1)*180,
-    xlab = 'UTC',
+    xlab = 'Time of Day',
     ylab = 'Sun Azimuth',
     main = 'Blue 22, Vertical Dances',
     type = 'l',
@@ -492,9 +492,9 @@ plot(x = GetToD(time_code_sast,
     y = Mod360.180(saz_seq),
     xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
     ylim = c(-1,1)*180,
-    xlab = 'UTC',
+    xlab = 'Time of Day',
     ylab = 'Sun Azimuth',
-    main = 'Blue 22, Vertical Dances',
+    main = 'All Bees, Vertical Dances',
     type = 'l',
     col = 'yellow3',
     lwd = 7
@@ -816,14 +816,7 @@ print(mv_agg,
 
 ### By time of day
 
-```{r plot-mean-vector-lengths}
-# boxplot(mean_vector~time,
-#         data = subset(mean_vectors,
-#                       condition %in% "vertical"),
-#         ylim = c(0,1),
-#         col = adjustcolor("cadetblue", alpha.f = 0.1),
-#         border = 'gray50',
-#         outline = FALSE)
+```{r consistency-time-of-day}
 plot(
   mean_vector ~ GetToD(as.POSIXct(
     x = paste(day, time),
@@ -847,9 +840,83 @@ plot(
   bg = gray(level = 0, alpha = 0.1),
   pch = 21
 )
-#Identify stimuli
 abline(h = c(0, 1))
+#add smooth curve
+with(
+  subset(
+    mean_vectors,
+    condition %in% c("vertical")
+  ),
+  {
+    lines(
+      loess.smooth(
+        x = GetToD(as.POSIXct(
+    x = paste(day, time),
+    tz = "Africa/Johannesburg",
+    format = "%Y%m%d %H:%M:%OS"
+  ),
+  tz = "UTC"),
+        y = mean_vector
+      ),
+
+      col = adjustcolor(col = 'darkblue', alpha.f = 0.5),
+      lwd = 5
+    )
+  }
+)
+
 ```
+
+Could this be a response to ephemeris error? 
+Perhaps they are trying to update their ephemeris with uncertainty?
+
+```{r mean-vector-ephemeris-error}
+plot(
+  mean_vector ~  abs(Mod360.180(
+          mu
+        )
+      ),
+  data = subset(
+    mean_vectors,
+    condition %in% "vertical"
+  ),
+  xlim = c(0,1)*90,#possible range
+  xlab = "Absolute azimuth error",
+  ylab = "Mean vector length",
+  main = "Vertical Dance Consistency",
+  col = adjustcolor(
+    cond_cols$vertical,
+    alpha.f = 0.5
+  ),
+  bg = gray(level = 0, alpha = 0.1),
+  pch = 21
+)
+abline(h = c(0, 1))
+#add smooth curve
+with(
+  subset(
+    mean_vectors,
+    condition %in% c("vertical")
+  ),
+  {
+    lines(
+      loess.smooth(
+        x = abs(Mod360.180(
+          mu
+        ) ),
+        y = mean_vector
+      ),
+
+      col = adjustcolor(col = 'darkblue', alpha.f = 0.5),
+      lwd = 5
+    )
+  }
+)
+
+```
+
+## Direction
+
 
 ```{r mean-angle-summary}
 par(mfrow = c(2,3), 
