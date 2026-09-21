@@ -38,34 +38,52 @@ suppressMessages(
 ## System parameters -----------------------------------------------------
 
 #Check the operating system and assign a logical flag (T or F)
-sys_win <- Sys.info()[['sysname']] == 'Windows'
+sys_win = Sys.info()[['sysname']] ==
+  'Windows'
 #User profile instead of home directory
 if (sys_win) {
   #get rid of all the backslashes
-  ltp <- gsub('\\\\', '/', Sys.getenv('USERPROFILE')) #Why does windows have to make this so difficult
+  ltp = gsub(
+    '\\\\',
+    '/',
+    Sys.getenv('USERPROFILE')
+  ) #Why does windows have to make this so difficult
 } else {
   #Root directory should be the "HOME" directory on a Mac (or Linux?)
-  ltp <- Sys.getenv('HOME') #Life was easier on Mac
+  ltp = Sys.getenv('HOME') #Life was easier on Mac
 }
 
 ## Select file ---------------------------------------------------------
-SelectCSV <- function(path = file.path(ltp, 'Documents', "*.csv")) {
+SelectCSV = function(
+  path = file.path(
+    ltp,
+    'Documents',
+    "*.csv"
+  )
+) {
   # set path to file
   if (sys_win) {
     #choose.files is only available on Windows
-    message('\n\nPlease select the ".csv" file\n\n')
+    message(
+      '\n\nPlease select the ".csv" file\n\n'
+    )
     Sys.sleep(0.5) #goes too fast for the user to see the message on some computers
-    path_file <- choose.files(
+    path_file = choose.files(
       default = path, #For some reason this is not possible in the "root" user
       caption = 'Please select the ".csv" file'
     )
   } else {
-    message('\n\nPlease select the ".csv" file\n\n')
+    message(
+      '\n\nPlease select the ".csv" file\n\n'
+    )
     Sys.sleep(0.5) #goes too fast for the user to see the message on some computers
-    path_file <- file.choose(new = F)
+    path_file = file.choose(new = F)
   }
   #show the user the path they have selected
-  if (is.null(path_file) | !length(path_file)) {
+  if (
+    is.null(path_file) |
+      !length(path_file)
+  ) {
     stop('No file selected.')
   } else {
     print(path_file)
@@ -76,43 +94,67 @@ SelectCSV <- function(path = file.path(ltp, 'Documents', "*.csv")) {
 
 #Open file with default program on any OS
 # https://stackoverflow.com/a/35044209/3745353
-shell.exec.OS <- function(x) {
+shell.exec.OS = function(x) {
   # Cross-platform replacement for shell.exec(): uses base::shell.exec on Windows,
   # or the system 'open' command on macOS/Linux.
-  if (exists("shell.exec", where = "package:base")) {
+  if (
+    exists(
+      "shell.exec",
+      where = "package:base"
+    )
+  ) {
     return(base::shell.exec(x))
   } else {
-    comm <- paste0('open "', x, '"')
+    comm = paste0('open "', x, '"')
     return(system(comm))
   }
 }
 
 #convert angles to signed angles in (-180, 180)
-Mod360.180 <- function(x) {
+Mod360.180 = function(x) {
   #use atan2 to convert any angle to the range (-180,180)
   deg(
-    atan2(y = sin(rad(x)), x = cos(rad(x)))
+    atan2(
+      y = sin(rad(x)),
+      x = cos(rad(x))
+    )
   )
 }
 
 #Wrap a radian angle to (-pi, pi) using atan2; radian equivalent of Mod360.180.
-mod_circular <- function(x) {
+mod_circular = function(x) {
   atan2(y = sin(x), x = cos(x))
 }
 
 #Shift circular angles so they are centred on the mean, removing the wrap-around discontinuity.
 #Returns angles in radians; useful before computing statistics that assume linearity.
-unwrap_circular <- function(x) {
-  mux <- mean.circular(x = circular(x = x, template = 'none'))
-  centx <- atan2(y = sin(x - mux), x = cos(x - mux))
-  unwrx <- centx + mux
+unwrap_circular = function(x) {
+  mux = mean.circular(
+    x = circular(
+      x = x,
+      template = 'none'
+    )
+  )
+  centx = atan2(
+    y = sin(x - mux),
+    x = cos(x - mux)
+  )
+  unwrx = centx + mux
 }
 
 #Degree version of unwrap_circular; returns unwrapped angles in degrees.
-unwrap_circular_deg <- function(x) {
-  mux <- mean.circular(x = circular(x = x, template = 'none'))
-  centx <- atan2(y = sin(x - mux), x = cos(x - mux))
-  unwrx <- centx + mux
+unwrap_circular_deg = function(x) {
+  mux = mean.circular(
+    x = circular(
+      x = x,
+      template = 'none'
+    )
+  )
+  centx = atan2(
+    y = sin(x - mux),
+    x = cos(x - mux)
+  )
+  unwrx = centx + mux
   return(deg(unwrx))
 }
 
@@ -120,32 +162,44 @@ unwrap_circular_deg <- function(x) {
 #https://en.wikipedia.org/wiki/Softplus
 #we are using this as our _inverse_ link function for kappa,
 #maps almost 1:1 but keeps values >0 for low estimates
-softplus <- function(x) {
+softplus = function(x) {
   log(exp(x) + 1)
 }
 #this would return our kappa estimates back to the original scale
-inv_softplus <- function(x) {
+inv_softplus = function(x) {
   log(exp(x) - 1)
 }
 
 #convert inv_softplus scaled kappa to mean vector estimate
-Softpl_to_meanvec <- function(x) {
+Softpl_to_meanvec = function(x) {
   circular::A1(
     softplus(x)
   )
 }
 
 #convert circular to normalised
-NormCirc <- function(x, plusmean = TRUE) {
-  mn <- mean.circular(x) * as.numeric(plusmean)
+NormCirc = function(
+  x,
+  plusmean = TRUE
+) {
+  mn = mean.circular(x) *
+    as.numeric(plusmean)
   return(mod_circular(x - mn) + mn)
 }
 
 
 ## Plot spacing function -------------------------------------------------
 #generates the same spacing as R's default barplot function
-BarSpacer <- function(n, spa = 0.2, wdt = 1.0) {
-  seq(from = spa + 1 - wdt / 2, to = n * (1 + spa) - wdt / 2, length.out = n)
+BarSpacer = function(
+  n,
+  spa = 0.2,
+  wdt = 1.0
+) {
+  seq(
+    from = spa + 1 - wdt / 2,
+    to = n * (1 + spa) - wdt / 2,
+    length.out = n
+  )
 }
 
 
@@ -153,36 +207,58 @@ BarSpacer <- function(n, spa = 0.2, wdt = 1.0) {
 
 #Fit a von Mises distribution by maximum likelihood to a numeric angle vector.
 #Returns a named vector with mu (mean direction) and kappa (concentration).
-MLE_est <- function(x) {
+MLE_est = function(x) {
   with(
-    mle.vonmises(circular(x, template = 'none'), bias = TRUE),
-    c(mu = as.numeric(mu), kappa = kappa)
+    mle.vonmises(
+      circular(x, template = 'none'),
+      bias = TRUE
+    ),
+    c(
+      mu = as.numeric(mu),
+      kappa = kappa
+    )
   )
 }
 
 #Perform the Rayleigh test of uniformity on a numeric angle vector.
 #Returns a named scalar p-value; small values indicate non-uniform (oriented) data.
-Rayleigh_p <- function(x) {
-  with(rayleigh.test(circular(x, template = 'none')), c(p = p.value))
+Rayleigh_p = function(x) {
+  with(
+    rayleigh.test(circular(
+      x,
+      template = 'none'
+    )),
+    c(p = p.value)
+  )
 }
 
 #find unique combinations of two variables
-IndCond <- function(id, dta, vars = c('cel_body', 'Shade.NoShade')) {
+IndCond = function(
+  id,
+  dta,
+  vars = c('cel_body', 'Shade.NoShade')
+) {
   # Subset rows by ID
-  sub_dta <- subset(dta, ID %in% id)
+  sub_dta = subset(dta, ID %in% id)
 
   # Select only the target columns
-  target_cols <- sub_dta[, vars, drop = FALSE]
+  target_cols = sub_dta[,
+    vars,
+    drop = FALSE
+  ]
 
   # Paste row-wise across all selected columns
-  row_pastes <- do.call(paste, target_cols)
+  row_pastes = do.call(
+    paste,
+    target_cols
+  )
 
   # Return the number of unique combinations
   return(length(unique(row_pastes)))
 }
 
 #Angular difference between two conditions for one individual
-MuDiff <- function(
+MuDiff = function(
   id, #individual name
   dta, #dataframe to use, contains columns "mu" (degrees) & "ID"
   vars = c('cel_body', 'Shade.NoShade'), #variables of interest
@@ -190,24 +266,38 @@ MuDiff <- function(
   ref_val = 'sun NoShade' # name of reference condition
 ) {
   # Create the combined target column dynamically
-  target_cols <- dta[, vars, drop = FALSE]
-  dta$stim <- do.call(paste, target_cols)
+  target_cols = dta[,
+    vars,
+    drop = FALSE
+  ]
+  dta$stim = do.call(paste, target_cols)
 
   # Paste the comparison values together so they match the 'stim' format
   # e.g., val = c('sun', 'NoShade') becomes "sun NoShade"
-  target_stim <- paste(val, collapse = " ")
-  ref_stim <- paste(ref_val, collapse = " ")
+  target_stim = paste(
+    val,
+    collapse = " "
+  )
+  ref_stim = paste(
+    ref_val,
+    collapse = " "
+  )
 
   # Subset by ID and calculate the circular difference
   with(
     subset(dta, ID %in% id),
     {
       # Extract mu for the target and reference conditions
-      mu_target <- mu[stim == target_stim]
-      mu_ref <- mu[stim == ref_stim]
+      mu_target = mu[
+        stim == target_stim
+      ]
+      mu_ref = mu[stim == ref_stim]
 
       # Ensure both conditions exist to avoid empty vector errors
-      if (length(mu_target) == 0 || length(mu_ref) == 0) {
+      if (
+        length(mu_target) == 0 ||
+          length(mu_ref) == 0
+      ) {
         # warning("Target or reference values not found in the specified 'vars' columns.")
         return(NA)
       }
@@ -225,7 +315,7 @@ MuDiff <- function(
 }
 
 #Concentration difference between two conditions for one individual
-KappaDiff <- function(
+KappaDiff = function(
   id, #individual name
   dta, #dataframe to use, contains columns "mu" (degrees) & "ID"
   vars = c('cel_body', 'Shade.NoShade'), #variables of interest
@@ -233,24 +323,40 @@ KappaDiff <- function(
   ref_val = 'sun NoShade' # name of reference condition
 ) {
   # Create the combined target column dynamically
-  target_cols <- dta[, vars, drop = FALSE]
-  dta$stim <- do.call(paste, target_cols)
+  target_cols = dta[,
+    vars,
+    drop = FALSE
+  ]
+  dta$stim = do.call(paste, target_cols)
 
   # Paste the comparison values together so they match the 'stim' format
   # e.g., val = c('sun', 'NoShade') becomes "sun NoShade"
-  target_stim <- paste(val, collapse = " ")
-  ref_stim <- paste(ref_val, collapse = " ")
+  target_stim = paste(
+    val,
+    collapse = " "
+  )
+  ref_stim = paste(
+    ref_val,
+    collapse = " "
+  )
 
   # Subset by ID and calculate the circular difference
   with(
     subset(dta, ID %in% id),
     {
       # Extract mu for the target and reference conditions
-      kappa_target <- kappa[stim == target_stim]
-      kappa_ref <- kappa[stim == ref_stim]
+      kappa_target = kappa[
+        stim == target_stim
+      ]
+      kappa_ref = kappa[
+        stim == ref_stim
+      ]
 
       # Ensure both conditions exist to avoid empty vector errors
-      if (length(kappa_target) == 0 || length(kappa_ref) == 0) {
+      if (
+        length(kappa_target) == 0 ||
+          length(kappa_ref) == 0
+      ) {
         # warning("Target or reference values not found in the specified 'vars' columns.")
         return(NA)
       }
@@ -264,7 +370,7 @@ KappaDiff <- function(
 }
 
 #Mean vector length difference between two conditions for one individual
-RhoDiff <- function(
+RhoDiff = function(
   id, #individual name
   dta, #dataframe to use, contains columns "mu" (degrees) & "ID"
   vars = c('cel_body', 'Shade.NoShade'), #variables of interest
@@ -272,24 +378,40 @@ RhoDiff <- function(
   ref_val = 'sun NoShade' # name of reference condition
 ) {
   # Create the combined target column dynamically
-  target_cols <- dta[, vars, drop = FALSE]
-  dta$stim <- do.call(paste, target_cols)
+  target_cols = dta[,
+    vars,
+    drop = FALSE
+  ]
+  dta$stim = do.call(paste, target_cols)
 
   # Paste the comparison values together so they match the 'stim' format
   # e.g., val = c('sun', 'NoShade') becomes "sun NoShade"
-  target_stim <- paste(val, collapse = " ")
-  ref_stim <- paste(ref_val, collapse = " ")
+  target_stim = paste(
+    val,
+    collapse = " "
+  )
+  ref_stim = paste(
+    ref_val,
+    collapse = " "
+  )
 
   # Subset by ID and calculate the circular difference
   with(
     subset(dta, ID %in% id),
     {
       # Extract mu for the target and reference conditions
-      rho_target <- mean_vector[stim == target_stim]
-      rho_ref <- mean_vector[stim == ref_stim]
+      rho_target = mean_vector[
+        stim == target_stim
+      ]
+      rho_ref = mean_vector[
+        stim == ref_stim
+      ]
 
       # Ensure both conditions exist to avoid empty vector errors
-      if (length(rho_target) == 0 || length(rho_ref) == 0) {
+      if (
+        length(rho_target) == 0 ||
+          length(rho_ref) == 0
+      ) {
         # warning("Target or reference values not found in the specified 'vars' columns.")
         return(NA)
       }
@@ -377,7 +499,8 @@ FirstDanceCond = function(
     !is.na(selected_ids)
   ]
   example_subs = dta[
-    as.character(dta[[id_col]]) %in% selected_ids,
+    as.character(dta[[id_col]]) %in%
+      selected_ids,
     ,
     drop = FALSE
   ]
@@ -399,7 +522,7 @@ FirstDanceCond = function(
 }
 
 #Boxplot and stripchart together
-BoxStripLine <- function(
+BoxStripLine = function(
   x,
   bxcol = 'gray75',
   pars = list(boxwex = 0.5),
@@ -434,30 +557,117 @@ BoxStripLine <- function(
   abline(h = ablineh, lty = 3)
 }
 
-PropDiff <- function(x, ref = 0, alternative = "two.sided", na.rm = TRUE) {
+PropDiff = function(
+  x,
+  ref = 0,
+  alternative = "two.sided",
+  na.rm = TRUE
+) {
   switch(
     EXPR = alternative,
     #for two sided, indicate direction with sign
-    two.sided = sign(mean(x > ref, na.rm = na.rm) - 0.5) *
+    two.sided = sign(
+      mean(x > ref, na.rm = na.rm) - 0.5
+    ) *
       max(c(
         mean(x > ref, na.rm = na.rm),
         mean(x < ref, na.rm = na.rm)
       )),
     less = mean(x < ref, na.rm = na.rm),
-    greater = mean(x > ref, na.rm = na.rm),
+    greater = mean(
+      x > ref,
+      na.rm = na.rm
+    ),
     #for two sided, indicate direction with sign
-    sign(mean(x > ref, na.rm = na.rm) - 0.5) *
+    sign(
+      mean(x > ref, na.rm = na.rm) - 0.5
+    ) *
       max(c(
         mean(x > ref, na.rm = na.rm),
         mean(x < ref, na.rm = na.rm)
       ))
   )
 }
+#fit a LOESS curve to data in (0,1)
+LogitLoess = function(
+  x,
+  y,
+  span = 0.75,
+  degree = 1,
+  x_new = NULL,
+  eps = .Machine$double.eps,
+  absangle = FALSE, # is y an angle in [0,180]?
+  ...
+) {
+  # x: predictor values
+  # y: response values in [0, 1]; exact 0 and 1 are allowed and are moved
+  #    slightly inside the interval before logit transformation
+
+  x = as.numeric(x)
+  y = as.numeric(
+    if (absangle) {
+      y / 180
+    } else {
+      y
+    }
+  )
+
+  if (length(x) != length(y)) {
+    stop(
+      "x and y must have the same length"
+    )
+  }
+  if (any(!is.finite(x))) {
+    stop("x contains non-finite values")
+  }
+
+  # Handle exact boundary values by nudging them just inside (0, 1).
+  # This avoids qlogis(0) = -Inf and qlogis(1) = Inf.
+  y_adj = ifelse(
+    y <= 0,
+    eps,
+    ifelse(y >= 1, 1 - eps, y)
+  )
+
+  # Transform proportions to the logit scale so the smoother acts on
+  # an unconstrained variable.
+  z = qlogis(y_adj)
+
+  # Fit a loess smoother on the transformed scale.
+  fit = loess(
+    z ~ x,
+    span = span,
+    degree = degree,
+    ...
+  )
+
+  # If no new x values are provided, predict at the original x values.
+  if (is.null(x_new)) {
+    x_new = x
+  }
+
+  # Convert fitted values back to probabilities.
+  preds = stats::predict(
+    fit,
+    newdata = data.frame(x = x_new)
+  )
+  prob_preds = plogis(preds)
+
+  return(list(
+    x = sort(x_new),
+    y = if (absangle) {
+      180 * prob_preds[order(x_new)]
+    } else {
+      prob_preds[order(x_new)]
+    }
+  ))
+}
+
 
 # Astronomical information -----------------------------------------------------
 
 #handling function (sunAngle is bad with NAs and vectors)
-GetSaz <- function(tm, lon, lat) {
+GetSaz = function(tm, lon, lat) {
   if (!is.na(tm)) {
     oce::sunAngle(
       t = tm,
@@ -470,7 +680,7 @@ GetSaz <- function(tm, lon, lat) {
   }
 }
 #handling function (sunAngle is bad with NAs and vectors)
-GetSel <- function(tm, lon, lat) {
+GetSel = function(tm, lon, lat) {
   if (!is.na(tm)) {
     oce::sunAngle(
       t = tm,
@@ -484,7 +694,7 @@ GetSel <- function(tm, lon, lat) {
 }
 
 #handling function (sunAngle is bad with NAs and vectors)
-GetMaz <- function(tm, lon, lat) {
+GetMaz = function(tm, lon, lat) {
   if (!is.na(tm)) {
     oce::moonAngle(
       t = tm,
@@ -497,7 +707,7 @@ GetMaz <- function(tm, lon, lat) {
   }
 }
 #handling function (sunAngle is bad with NAs and vectors)
-GetMel <- function(tm, lon, lat) {
+GetMel = function(tm, lon, lat) {
   if (!is.na(tm)) {
     oce::moonAngle(
       t = tm,
@@ -511,10 +721,17 @@ GetMel <- function(tm, lon, lat) {
 }
 
 #time of day from date
-GetToD <- function(tm, tz = attr(tm, "tzone")) {
-  t_form <- format(tm, "%H:%M:%S")
-  t_string <- paste("1970-01-01", t_form)
-  tod <- as.POSIXct(x = t_string, tz = tz, format = "%Y-%m-%d %H:%M:%OS")
+GetToD = function(
+  tm,
+  tz = attr(tm, "tzone")
+) {
+  t_form = format(tm, "%H:%M:%S")
+  t_string = paste("1970-01-01", t_form)
+  tod = as.POSIXct(
+    x = t_string,
+    tz = tz,
+    format = "%Y-%m-%d %H:%M:%OS"
+  )
   return(tod)
 }
 
@@ -522,12 +739,15 @@ GetToD <- function(tm, tz = attr(tm, "tzone")) {
 #convert an alphanumeric longitude or latitude
 #in degrees, minutes, seconds, cardinal direction
 #to its decimal equivalent
-Alphnum2decimal <- function(alphnum) {
+Alphnum2decimal = function(alphnum) {
   # cardinal direction (character)
-  card <- alphnum[4]
+  card = alphnum[4]
   # number components (reformat to numeric)
-  numb <- sapply(X = alphnum[-4], FUN = as.numeric)
-  dec <- switch(
+  numb = sapply(
+    X = alphnum[-4],
+    FUN = as.numeric
+  )
+  dec = switch(
     EXPR = card,
     N = 1,
     E = 1,
@@ -549,22 +769,24 @@ Alphnum2decimal <- function(alphnum) {
 
 #convert an alphanumeric string of latitude and longitude
 #to a pair of signed decimals of longitude and latitude
-Dms2decimal <- function(alphanum) {
+Dms2decimal = function(alphanum) {
   # Accept the single alphanumeric coordinate pair string and clean it up
   # This splits by any sequence of degrees, minutes, seconds symbols, spaces, or commas
   # e.g., "25° 34' 18" S, 31° 10' 48" E" -> c("25", "34", "18", "S", "31", "10", "48", "E")
-  raw_tokens <- unlist(strsplit(
+  raw_tokens = unlist(strsplit(
     x = alphanum,
     split = "[°'\",\\s]+",
     perl = TRUE
   ))
 
   # Remove any accidental trailing empty strings from the split
-  raw_tokens <- raw_tokens[raw_tokens != ""]
+  raw_tokens = raw_tokens[
+    raw_tokens != ""
+  ]
 
   # Group the flat tokens into two distinct sub-lists: [[lat_components], [lon_components]]
   # Each sub-list will match your exact expected layout: c(Deg, Min, Sec, Direction)
-  lst <- list(
+  lst = list(
     latitude = switch(
       raw_tokens[4], # check 4th position is a N–S cardinal direction
       N = raw_tokens[1:4],
@@ -593,12 +815,15 @@ Dms2decimal <- function(alphanum) {
   )
 
   #Convert each component to decimal, collapse to vector
-  dec <- sapply(X = lst, FUN = Alphnum2decimal)
+  dec = sapply(
+    X = lst,
+    FUN = Alphnum2decimal
+  )
   #inherit names from list version
-  names(dec) <- names(lst)
+  names(dec) = names(lst)
 
   # for some reason geosphere takes bearings in the order: longitude, latitude
-  dec <- dec[c('longitude', 'latitude')] # should inherit names, in for troubleshooting
+  dec = dec[c('longitude', 'latitude')] # should inherit names, in for troubleshooting
   return(dec)
 }
 
@@ -607,7 +832,7 @@ Dms2decimal <- function(alphanum) {
 
 #Plot a circular dataset as a stacked dot plot (clockwise, north-up convention).
 #Optionally overlays a mean-vector arrow scaled by rho (circular concentration).
-PCfun <- function(
+PCfun = function(
   angles,
   col = 'darkblue',
   shrink = 1.5,
@@ -616,7 +841,11 @@ PCfun <- function(
   titleline = -2,
   side = 1
 ) {
-  ca <- circular(x = as.numeric(angles), units = 'degrees', rotation = 'clock')
+  ca = circular(
+    x = as.numeric(angles),
+    units = 'degrees',
+    rotation = 'clock'
+  )
   plot.circular(
     x = ca,
     col = col,
@@ -628,12 +857,26 @@ PCfun <- function(
     zero = pi / 2,
     shrink = shrink
   )
-  mtext(text = title, side = side, line = titleline)
-  lines(x = c(0, 0), y = c(-1, 1), col = 'gray')
+  mtext(
+    text = title,
+    side = side,
+    line = titleline
+  )
+  lines(
+    x = c(0, 0),
+    y = c(-1, 1),
+    col = 'gray'
+  )
   if (plot_rho) {
     arrows.circular(
-      x = mean.circular(ca, na.rm = TRUE),
-      y = rho.circular(ca, na.rm = TRUE),
+      x = mean.circular(
+        ca,
+        na.rm = TRUE
+      ),
+      y = rho.circular(
+        ca,
+        na.rm = TRUE
+      ),
       zero = pi / 2,
       rotation = 'clock',
       col = col,
@@ -645,12 +888,26 @@ PCfun <- function(
 
 #Plot the best-fitting circular mixture model (from CircMLE) alongside the raw data.
 #Runs circ_mle() internally and passes the result to plot_circMLE().
-Plt_cmle <- function(dt, col = 'black', title = '') {
-  cdt <- circular(x = dt, units = 'degrees', rotation = 'clock', zero = pi / 2)
+Plt_cmle = function(
+  dt,
+  col = 'black',
+  title = ''
+) {
+  cdt = circular(
+    x = dt,
+    units = 'degrees',
+    rotation = 'clock',
+    zero = pi / 2
+  )
   plot_circMLE(
     data = cdt,
     table = circ_mle(data = cdt),
-    col = c(col, col, 'gray20', 'gray20')
+    col = c(
+      col,
+      col,
+      'gray20',
+      'gray20'
+    )
   )
   text(x = 0, y = -1.5, labels = title)
 }
@@ -658,7 +915,7 @@ Plt_cmle <- function(dt, col = 'black', title = '') {
 
 #Open an empty circular plot (no data) with a dashed significance-threshold circle.
 #The threshold radius is derived from the Rayleigh test at alpha = 0.05 for n_sample observations.
-OpenCplot <- function(
+OpenCplot = function(
   x,
   angle_unit = 'degrees',
   angle_rot = 'clock',
@@ -678,11 +935,19 @@ OpenCplot <- function(
   )
   lines.circular(
     x = circular(
-      x = seq(from = -180, to = 180, length.out = 1e3),
+      x = seq(
+        from = -180,
+        to = 180,
+        length.out = 1e3
+      ),
       units = angle_unit,
       rotation = angle_rot
     ),
-    y = rep(x = sqrt(-log(0.05) / n_sample) - 1, times = 1e3),
+    y = rep(
+      x = sqrt(-log(0.05) / n_sample) -
+        1,
+      times = 1e3
+    ),
     col = 'black',
     lty = 2,
     lwd = 0.25,
@@ -693,7 +958,7 @@ OpenCplot <- function(
 #Draw an arc from angle a1 (at radius r1) to angle a2 (at radius r2) on an existing circular plot.
 #Marked endpoints use col1 (open circle) and col2 (filled circle); handles wrap-around correctly.
 #20260625 fixed to deal with points at -180° 180° boundary.
-DiffArc <- function(
+DiffArc = function(
   a1,
   a2,
   r1,
@@ -703,59 +968,119 @@ DiffArc <- function(
   angle_rot = 'clock',
   ...
 ) {
-  ma1 <- Mod360.180(a1)
-  ma2 <- Mod360.180(a2)
+  ma1 = Mod360.180(a1)
+  ma2 = Mod360.180(a2)
 
   # Calculate the shortest angular distance (-180 to 180)
-  ang_diff <- Mod360.180(ma2 - ma1)
+  ang_diff = Mod360.180(ma2 - ma1)
 
   # Define a continuous target angle based on the shortest path
-  ma2_shortest <- ma1 + ang_diff
+  ma2_shortest = ma1 + ang_diff
 
   # Plot the single continuous shortest sequence
   lines.circular(
     x = circular(
-      x = seq(from = ma1, to = ma2_shortest, length.out = 1e2),
+      x = seq(
+        from = ma1,
+        to = ma2_shortest,
+        length.out = 1e2
+      ),
       type = 'angles',
       unit = 'degrees',
       modulo = '2pi',
       zero = pi / 2,
       rotation = angle_rot
     ),
-    y = seq(from = r1, to = r2, length.out = 1e2) - 1,
+    y = seq(
+      from = r1,
+      to = r2,
+      length.out = 1e2
+    ) -
+      1,
     ...
   )
 
   # Draw the starting and ending points
   points(
-    x = c(sin(rad(a1)) * r1, sin(rad(a2)) * r2),
-    y = c(cos(rad(a1)) * r1, cos(rad(a2)) * r2),
-    col = adjustcolor(col = c(col1, col2), alpha.f = 0.5),
+    x = c(
+      sin(rad(a1)) * r1,
+      sin(rad(a2)) * r2
+    ),
+    y = c(
+      cos(rad(a1)) * r1,
+      cos(rad(a2)) * r2
+    ),
+    col = adjustcolor(
+      col = c(col1, col2),
+      alpha.f = 0.5
+    ),
     pch = c(21, 19),
     lwd = 2
   )
 }
 
 #plot vectors for each ID
-Plt_IDvectors <- function(dta, ids, vtype = 'kappa', angle_name = 'mu', ...) {
+Plt_IDvectors = function(
+  dta,
+  ids,
+  vtype = 'kappa',
+  angle_name = 'mu',
+  ...
+) {
   for (i in ids) {
     with(subset(dta, ID %in% i), {
       if (length(mu) > 0) {
         switch(
           EXPR = vtype,
           rho = lines(
-            x = c(0, sin(rad(get(angle_name))) * mean_vector),
-            y = c(0, cos(rad(get(angle_name))) * mean_vector),
+            x = c(
+              0,
+              sin(rad(get(
+                angle_name
+              ))) *
+                mean_vector
+            ),
+            y = c(
+              0,
+              cos(rad(get(
+                angle_name
+              ))) *
+                mean_vector
+            ),
             ...
           ),
           kappa = lines(
-            x = c(0, sin(rad(get(angle_name))) * A1(kappa)),
-            y = c(0, cos(rad(get(angle_name))) * A1(kappa)),
+            x = c(
+              0,
+              sin(rad(get(
+                angle_name
+              ))) *
+                A1(kappa)
+            ),
+            y = c(
+              0,
+              cos(rad(get(
+                angle_name
+              ))) *
+                A1(kappa)
+            ),
             ...
           ),
           lines(
-            x = c(0, sin(rad(get(angle_name))) * A1(kappa)),
-            y = c(0, cos(rad(get(angle_name))) * A1(kappa)),
+            x = c(
+              0,
+              sin(rad(get(
+                angle_name
+              ))) *
+                A1(kappa)
+            ),
+            y = c(
+              0,
+              cos(rad(get(
+                angle_name
+              ))) *
+                A1(kappa)
+            ),
             ...
           )
         )
@@ -764,7 +1089,7 @@ Plt_IDvectors <- function(dta, ids, vtype = 'kappa', angle_name = 'mu', ...) {
   }
 }
 
-Plt_mvec <- function(
+Plt_mvec = function(
   id,
   dta,
   vars = c('cel_body', 'Shade.NoShade'),
@@ -773,28 +1098,42 @@ Plt_mvec <- function(
 ) {
   #passed to lines
   # Select only the target columns
-  target_cols <- dta[, vars, drop = FALSE]
+  target_cols = dta[,
+    vars,
+    drop = FALSE
+  ]
 
   # Paste row-wise across all selected columns
-  row_pastes <- do.call(paste, target_cols)
+  row_pastes = do.call(
+    paste,
+    target_cols
+  )
 
-  dta$stim <- row_pastes
+  dta$stim = row_pastes
 
-  with(subset(x = dta, subset = ID %in% id), {
-    lines(
-      x = 1:length(unique(row_pastes)),
-      y = mean_vector[match(
-        x = unique(row_pastes)[ord], #TODO check why this order
-        table = stim,
-        nomatch = NA
-      )],
-      col = gray(0, 0.2),
-      ...
-    )
-  })
+  with(
+    subset(
+      x = dta,
+      subset = ID %in% id
+    ),
+    {
+      lines(
+        x = 1:length(unique(
+          row_pastes
+        )),
+        y = mean_vector[match(
+          x = unique(row_pastes)[ord], #TODO check why this order
+          table = stim,
+          nomatch = NA
+        )],
+        col = gray(0, 0.2),
+        ...
+      )
+    }
+  )
 }
 
-Plt_kappa <- function(
+Plt_kappa = function(
   id,
   dta,
   vars = c('cel_body', 'Shade.NoShade'),
@@ -803,28 +1142,42 @@ Plt_kappa <- function(
 ) {
   #passed to lines
   # Select only the target columns
-  target_cols <- dta[, vars, drop = FALSE]
+  target_cols = dta[,
+    vars,
+    drop = FALSE
+  ]
 
   # Paste row-wise across all selected columns
-  row_pastes <- do.call(paste, target_cols)
+  row_pastes = do.call(
+    paste,
+    target_cols
+  )
 
-  dta$stim <- row_pastes
+  dta$stim = row_pastes
 
-  with(subset(x = dta, subset = ID %in% id), {
-    lines(
-      x = 1:length(unique(row_pastes)),
-      y = kappa[match(
-        x = unique(row_pastes)[ord], #TODO check why this order
-        table = stim,
-        nomatch = NA
-      )],
-      col = gray(0, 0.2),
-      ...
-    )
-  })
+  with(
+    subset(
+      x = dta,
+      subset = ID %in% id
+    ),
+    {
+      lines(
+        x = 1:length(unique(
+          row_pastes
+        )),
+        y = kappa[match(
+          x = unique(row_pastes)[ord], #TODO check why this order
+          table = stim,
+          nomatch = NA
+        )],
+        col = gray(0, 0.2),
+        ...
+      )
+    }
+  )
 }
 
-Plt_iskappa <- function(
+Plt_iskappa = function(
   id,
   dta,
   vars = c('cel_body', 'Shade.NoShade'),
@@ -833,117 +1186,175 @@ Plt_iskappa <- function(
 ) {
   #passed to lines
   # Select only the target columns
-  target_cols <- dta[, vars, drop = FALSE]
+  target_cols = dta[,
+    vars,
+    drop = FALSE
+  ]
 
   # Paste row-wise across all selected columns
-  row_pastes <- do.call(paste, target_cols)
+  row_pastes = do.call(
+    paste,
+    target_cols
+  )
 
-  dta$stim <- row_pastes
+  dta$stim = row_pastes
 
-  with(subset(x = dta, subset = ID %in% id), {
-    lines(
-      x = 1:length(unique(row_pastes)),
-      y = iskappa[match(
-        x = unique(row_pastes)[ord], #TODO check why this order
-        table = stim,
-        nomatch = NA
-      )],
-      col = gray(0, 0.2),
-      ...
-    )
-  })
+  with(
+    subset(
+      x = dta,
+      subset = ID %in% id
+    ),
+    {
+      lines(
+        x = 1:length(unique(
+          row_pastes
+        )),
+        y = iskappa[match(
+          x = unique(row_pastes)[ord], #TODO check why this order
+          table = stim,
+          nomatch = NA
+        )],
+        col = gray(0, 0.2),
+        ...
+      )
+    }
+  )
 }
 
-Plt_mu <- function(id, dta, vars = c('cel_body', 'Shade.NoShade'), ...) {
+Plt_mu = function(
+  id,
+  dta,
+  vars = c('cel_body', 'Shade.NoShade'),
+  ...
+) {
   #passed to lines
   # Select only the target columns
-  target_cols <- dta[, vars, drop = FALSE]
+  target_cols = dta[,
+    vars,
+    drop = FALSE
+  ]
 
   # Paste row-wise across all selected columns
-  row_pastes <- do.call(paste, target_cols)
+  row_pastes = do.call(
+    paste,
+    target_cols
+  )
 
-  dta$stim <- row_pastes
+  dta$stim = row_pastes
 
-  with(subset(x = dta, subset = ID %in% id), {
-    lines(
-      x = 1:length(unique(row_pastes)),
-      y = mu[match(
-        x = unique(row_pastes)[c(4, 1, 3, 2)], #c(1,2,4,3),#expected order, was previously c(1,3,2,4)
-        table = stim,
-        nomatch = NA
-      )],
-      col = gray(0, 0.2),
-      ...
-    )
-  })
+  with(
+    subset(
+      x = dta,
+      subset = ID %in% id
+    ),
+    {
+      lines(
+        x = 1:length(unique(
+          row_pastes
+        )),
+        y = mu[match(
+          x = unique(row_pastes)[c(
+            4,
+            1,
+            3,
+            2
+          )], #c(1,2,4,3),#expected order, was previously c(1,3,2,4)
+          table = stim,
+          nomatch = NA
+        )],
+        col = gray(0, 0.2),
+        ...
+      )
+    }
+  )
 }
 
 #Plot a subset of dances for the six experimental conditions in a 2x3 layout.
 #angle_for selects dance_sun_angle with feeder_az as reference ('sun') or
 #deg(feeder_angle) with sun_az as reference ('feeder').
 #Missing conditions are labelled; cond_cols supplies the condition-specific colours.
-Plt_subs = function(subs,
-                    angle_for = "sun",
-                    title = NULL,
-                    cond_cols = list(
-                      vertical = 'darkred',
-                      horizontal = 'darkgreen',
-                      tilted = 'seagreen',
-                      solar = 'blue4',
-                      antisolar = 'cyan4',
-                      zenith = "skyblue3"
-                    )) {
-  par(mfrow = c(2, 3),
-      mar = c(0, 0, 0, 0),
-      oma = c(1, 0, 0, 0))
-  
-  for (condition_name in  c("vertical",
-                            "horizontal",
-                            "tilted",
-                            "antisolar",
-                            "solar",
-                            "zenith")#preferred plotting order
-  ) {
-    condition_subs = subset(subs, condition %in% condition_name)
-    
+Plt_subs = function(
+  subs,
+  angle_for = "sun",
+  title = NULL,
+  cond_cols = list(
+    vertical = 'darkred',
+    horizontal = 'darkgreen',
+    tilted = 'seagreen',
+    solar = 'blue4',
+    antisolar = 'cyan4',
+    zenith = "skyblue3"
+  )
+) {
+  par(
+    mfrow = c(2, 3),
+    mar = c(0, 0, 0, 0),
+    oma = c(1, 0, 0, 0)
+  )
+
+  #preferred plotting order
+  for (condition_name in c(
+    "vertical",
+    "horizontal",
+    "tilted",
+    "antisolar",
+    "solar",
+    "zenith"
+  )) {
+    condition_subs = subset(
+      subs,
+      condition %in% condition_name
+    )
+
     if (nrow(condition_subs) > 0) {
-      plot_angles = with(condition_subs, {
-        switch(
-          angle_for,
-          sun = dance_sun_angle,
-          feeder = deg(feeder_angle),
-          get(angle_for)
-          
-        )
-      })
-      
+      plot_angles = with(
+        condition_subs,
+        {
+          switch(
+            angle_for,
+            sun = dance_sun_angle,
+            feeder = deg(feeder_angle),
+            get(angle_for)
+          )
+        }
+      )
+
       PCfun(
         angles = plot_angles,
-        col = cond_cols[[condition_name]],
+        col = cond_cols[[
+          condition_name
+        ]],
         shrink = 1.5,
         title = with(condition_subs, {
-          paste(unique(ID), unique(time), unique(condition))
+          paste(
+            unique(ID),
+            unique(time),
+            unique(condition)
+          )
         })
       )
-      
+
       ref_angle = with(condition_subs, {
-        switch(EXPR = angle_for,
-               sun = feeder_az[1],
-               feeder = sun_az[1],
-               NA)
+        switch(
+          EXPR = angle_for,
+          sun = feeder_az[1],
+          feeder = sun_az[1],
+          NA
+        )
       })
-      
-      
+
       lines(
         x = c(0, sin(rad(ref_angle))),
         y = c(0, cos(rad(ref_angle))),
-        col = adjustcolor(col =
-                            switch(
-                              EXPR = angle_for,
-                              sun = "navajowhite4",
-                              feeder = "yellow3",
-                              NA
-                            ), alpha.f = 0.5),
+        col = adjustcolor(
+          col = switch(
+            EXPR = angle_for,
+            sun = "navajowhite4",
+            feeder = "yellow3",
+            NA
+          ),
+          alpha.f = 0.5
+        ),
         lwd = 3
       )
     } else {
@@ -956,11 +1367,17 @@ Plt_subs = function(subs,
         ylab = "",
         main = ""
       )
-      legend(x = "center",
-             legend = paste("no", condition_name, "data found"))
+      legend(
+        x = "center",
+        legend = paste(
+          "no",
+          condition_name,
+          "data found"
+        )
+      )
     }
   }
-  
+
   if (!is.null(title)) {
     mtext(
       text = title,
@@ -973,7 +1390,7 @@ Plt_subs = function(subs,
 
 
 # Set up circular formats -----------------------------------------------
-pipi0 <- list(
+pipi0 = list(
   units = 'radians',
   type = 'angles',
   modulo = '2pi',
@@ -982,7 +1399,7 @@ pipi0 <- list(
   template = 'none'
 )
 
-deg360 <- list(
+deg360 = list(
   units = 'degrees',
   type = 'angles',
   modulo = '2pi',
@@ -994,7 +1411,11 @@ deg360 <- list(
 
 # Generate circular parameters based on input data ------------------------
 #Generate parameters for each individual
-ParGenerator <- function(i, params, nn = 1) {
+ParGenerator = function(
+  i,
+  params,
+  nn = 1
+) {
   list(
     mu = switch(
       EXPR = params$mu, #mu can be "uniform" or "vonmises" (i.e. distribution)
@@ -1005,9 +1426,15 @@ ParGenerator <- function(i, params, nn = 1) {
       ),
       vonmises = circular::rvonmises(
         n = nn,
-        mu = as.circular(x = 0, control.circular = deg360),
+        mu = as.circular(
+          x = 0,
+          control.circular = deg360
+        ),
         # kappa = (params$sd*pi/180)^-2),#kappa ~= 1/(sd)^2
-        kappa = A1inv(exp(((params$sd * pi / 180)^2) / (-2))),
+        kappa = A1inv(exp(
+          ((params$sd * pi / 180)^2) /
+            (-2)
+        )),
         control.circular = deg360
       ), #sd = sqrt(-2 * log(r))
       runif(
@@ -1017,14 +1444,21 @@ ParGenerator <- function(i, params, nn = 1) {
       )
     ),
     kappa = exp(
-      rep(x = log(params$kappa), times = nn) +
-        rnorm(n = nn, mean = 0, sd = params$sd_logkappa)
+      rep(
+        x = log(params$kappa),
+        times = nn
+      ) +
+        rnorm(
+          n = nn,
+          mean = 0,
+          sd = params$sd_logkappa
+        )
     )
   )
 }
 
 #generate full distribution from those parameters
-RVMgenerator <- function(
+RVMgenerator = function(
   param,
   nn = 20,
   cc = list(
@@ -1036,9 +1470,12 @@ RVMgenerator <- function(
     template = 'none'
   )
 ) {
-  xx <- circular::rvonmises(
+  xx = circular::rvonmises(
     n = nn,
-    mu = circular::as.circular(x = param$mu, control.circular = cc),
+    mu = circular::as.circular(
+      x = param$mu,
+      control.circular = cc
+    ),
     kappa = param$kappa
   ) -
     pi
@@ -1049,13 +1486,13 @@ RVMgenerator <- function(
 # Maximum Likelihood Modelling --------------------------------------------
 
 #Extract the parameters of the top model fit by circ_mle
-MD_extract <- function(md) {
+MD_extract = function(md) {
   #extract the order of models in the circm_mle results
-  md_order <- with(md, {
+  md_order = with(md, {
     rownames(results)
   })
   #extract the results for just the "best model" lowest AIC
-  md_best <- with(md, {
+  md_best = with(md, {
     results[md_order %in% bestmodel, ]
   })
   #extract just the relevant parameters
@@ -1074,12 +1511,22 @@ MD_extract <- function(md) {
 }
 
 #function to calculate the likelihood of a sample, given the input ML parameters
-LLcalc <- function(ml, angles, au = 'degrees', ar = 'clock', ...) {
+LLcalc = function(
+  ml,
+  angles,
+  au = 'degrees',
+  ar = 'clock',
+  ...
+) {
   with(ml, {
     sum(
       # add together
       dvonmises(
-        x = circular(x = angles, units = au, rotation = ar), # probability density for each observed angle
+        x = circular(
+          x = angles,
+          units = au,
+          rotation = ar
+        ), # probability density for each observed angle
         mu = mu, # ML estimated mean
         kappa = kappa, # ML estimated concentration
         log = TRUE
@@ -1089,7 +1536,7 @@ LLcalc <- function(ml, angles, au = 'degrees', ar = 'clock', ...) {
 }
 
 #generic mean angle simulator
-MeanRvm <- function(
+MeanRvm = function(
   n, #representative sample size
   mu = circular(0), #mean (defaults to 0rad)
   kappa, #kappa required
@@ -1099,15 +1546,22 @@ MeanRvm <- function(
   #rotation direction
   mean.circular(rvonmises(
     n = n,
-    mu = circular(mu, units = au, rotation = ar),
+    mu = circular(
+      mu,
+      units = au,
+      rotation = ar
+    ),
     kappa = kappa,
-    control.circular = list(units = au, rotation = ar)
+    control.circular = list(
+      units = au,
+      rotation = ar
+    )
   ))
 }
 
 #Simulate confidence intervals for a unimodal or bimodal distribution
 #fitted to a vector of "angles"
-CI_vM <- function(
+CI_vM = function(
   angles, #vector of angles fitted (used for sample size)
   m1, #primary mean
   k1, #primary concentration
@@ -1124,10 +1578,16 @@ CI_vM <- function(
 ) {
   if (speedup_parallel) {
     #3x faster
-    cl <- parallel::makePSOCKcluster(parallel::detectCores() - 1)
+    cl = parallel::makePSOCKcluster(
+      parallel::detectCores() - 1
+    )
     parallel::clusterExport(
       cl = cl,
-      varlist = c('mean.circular', 'circular', 'rvonmises'),
+      varlist = c(
+        'mean.circular',
+        'circular',
+        'rvonmises'
+      ),
       envir = .GlobalEnv
     )
     parallel::clusterExport(
@@ -1147,7 +1607,7 @@ CI_vM <- function(
       envir = environment()
     )
     #simulate primary mean
-    m1_est <-
+    m1_est =
       parallel::parSapply(
         cl = cl,
         X = 1:n,
@@ -1155,7 +1615,9 @@ CI_vM <- function(
           eval.parent(
             {
               MeanRvm(
-                n = round(length(angles) * w1), #estimate number of observations at primary mean
+                n = round(
+                  length(angles) * w1
+                ), #estimate number of observations at primary mean
                 mu = m1,
                 kappa = k1,
                 au = au,
@@ -1168,7 +1630,7 @@ CI_vM <- function(
       )
     if (!is.na(m2)) {
       #if there is a valid secondary mean
-      m2_est <-
+      m2_est =
         parallel::parSapply(
           cl = cl,
           X = 1:n,
@@ -1176,7 +1638,10 @@ CI_vM <- function(
             eval.parent(
               {
                 MeanRvm(
-                  n = round(length(angles) * (1 - w1)), #estimate number of observations at secondary mean
+                  n = round(
+                    length(angles) *
+                      (1 - w1)
+                  ), #estimate number of observations at secondary mean
                   mu = m2,
                   kappa = k2,
                   au = au,
@@ -1191,7 +1656,7 @@ CI_vM <- function(
     parallel::stopCluster(cl)
   } else {
     #if not using parallel, use the slower version via replicate()
-    m1_est <- replicate(
+    m1_est = replicate(
       n = n,
       MeanRvm(
         n = round(length(angles) * w1),
@@ -1202,10 +1667,12 @@ CI_vM <- function(
       )
     )
     if (!is.na(m2)) {
-      m2_est <- replicate(
+      m2_est = replicate(
         n = n,
         MeanRvm(
-          n = round(length(angles) * (1 - w1)),
+          n = round(
+            length(angles) * (1 - w1)
+          ),
           mu = m2,
           kappa = k2,
           au = au,
@@ -1219,9 +1686,15 @@ CI_vM <- function(
       #calculate quantiles only if requested
       #either two-sided, symmetrical around mean change
       #or one-sided, from zero change towards mean change
-      probs1 <- switch(
+      probs1 = switch(
         alternative,
-        two.sided = sort(c(c(0, 1) + c(1, -1) * (1 - interval) / 2, 0.5)),
+        two.sided = sort(c(
+          c(0, 1) +
+            c(1, -1) *
+              (1 - interval) /
+              2,
+          0.5
+        )),
         one.sided = sort(c(
           c(0, 1) +
             (if (Mod360.180(m1) > 0) {
@@ -1247,14 +1720,24 @@ CI_vM <- function(
       if (is.na(m2)) {
         Mod360.180(
           quantile.circular(
-            x = circular(x = m1_est, units = au, rotation = ar),
+            x = circular(
+              x = m1_est,
+              units = au,
+              rotation = ar
+            ),
             probs = probs1
           )
         )
       } else {
-        probs2 <- switch(
+        probs2 = switch(
           alternative,
-          two.sided = sort(c(c(0, 1) + c(1, -1) * (1 - interval) / 2, 0.5)),
+          two.sided = sort(c(
+            c(0, 1) +
+              c(1, -1) *
+                (1 - interval) /
+                2,
+            0.5
+          )),
           one.sided = sort(c(
             c(0, 1) +
               (if (Mod360.180(m2) > 0) {
@@ -1279,13 +1762,21 @@ CI_vM <- function(
         list(
           m1 = Mod360.180(
             quantile.circular(
-              x = circular(x = m1_est, units = au, rotation = ar),
+              x = circular(
+                x = m1_est,
+                units = au,
+                rotation = ar
+              ),
               probs = probs1
             )
           ),
           m2 = Mod360.180(
             quantile.circular(
-              x = circular(x = m2_est, units = au, rotation = ar),
+              x = circular(
+                x = m2_est,
+                units = au,
+                rotation = ar
+              ),
               probs = probs2
             )
           )
@@ -1294,12 +1785,21 @@ CI_vM <- function(
     } else {
       #if quantiles not requested, return the simulations (mainly for troubleshooting)
       if (is.na(m2)) {
-        m1_est <-
-          sapply(X = m1_est, FUN = Mod360.180)
+        m1_est =
+          sapply(
+            X = m1_est,
+            FUN = Mod360.180
+          )
       } else {
         list(
-          m1_est = sapply(X = m1_est, FUN = Mod360.180),
-          m2_est = sapply(X = m2_est, FUN = Mod360.180),
+          m1_est = sapply(
+            X = m1_est,
+            FUN = Mod360.180
+          ),
+          m2_est = sapply(
+            X = m2_est,
+            FUN = Mod360.180
+          ),
         )
       }
     }
@@ -1308,15 +1808,19 @@ CI_vM <- function(
 
 #Format CI simulation results from CI_vM into a data frame.
 #Each row is one dataset; columns give lower/median/upper for m1 (and m2 if bimodal).
-Table_vCI <- function(ci) {
-  rowCI <- function(i) {
-    ci_lab <- c('lower', 'median', 'upper')
+Table_vCI = function(ci) {
+  rowCI = function(i) {
+    ci_lab = c(
+      'lower',
+      'median',
+      'upper'
+    )
     if (length(i) == 3) {
       #only m1 simulated, CI extremes and median returned
-      nm1 <- as.numeric(i)
-      m2 <- c(NA, NA, NA) #set m2 to NA
-      names(nm1) <- ci_lab #give same labels as m1 for consistency
-      names(m2) <- ci_lab #give same labels as m1 for consistency
+      nm1 = as.numeric(i)
+      m2 = c(NA, NA, NA) #set m2 to NA
+      names(nm1) = ci_lab #give same labels as m1 for consistency
+      names(m2) = ci_lab #give same labels as m1 for consistency
       return(c(
         m1 = nm1, #remove circular formatting to collapse vector
         m2 = m2
@@ -1325,12 +1829,12 @@ Table_vCI <- function(ci) {
       #both m1 and m2 simulated
       return(
         with(i, {
-          nm1 <- as.numeric(m1)
-          nm2 <- as.numeric(m2)
+          nm1 = as.numeric(m1)
+          nm2 = as.numeric(m2)
           # names(nm1) = names(m1)
           # names(nm2) = names(m2)
-          names(nm1) <- ci_lab
-          names(nm2) <- ci_lab
+          names(nm1) = ci_lab
+          names(nm2) = ci_lab
           c(
             m1 = nm1, #remove circular formatting to collapse vector
             m2 = nm2
@@ -1339,26 +1843,36 @@ Table_vCI <- function(ci) {
       )
     }
   }
-  lst <- lapply(X = ci, FUN = rowCI)
+  lst = lapply(X = ci, FUN = rowCI)
   do.call(what = rbind, lst)
 }
 
 #Draw a simulated confidence interval as an arc on an existing circular plot.
 #ci_vec is a 3-element (unimodal) or 6-element (bimodal) vector of lower/median/upper angles in degrees.
-PlotCI_vM <- function(ci_vec, col = 'salmon', lwd = 2, radius = 0.95, ...) {
+PlotCI_vM = function(
+  ci_vec,
+  col = 'salmon',
+  lwd = 2,
+  radius = 0.95,
+  ...
+) {
   #passed to lines()
-  angle_seq1 <-
+  angle_seq1 =
     c(
       seq(
         from = ci_vec[1], #lower
         to = ci_vec[1] +
-          Mod360.180(ci_vec[2] - ci_vec[1]), #median
+          Mod360.180(
+            ci_vec[2] - ci_vec[1]
+          ), #median
         length.out = 1e2 / 2
       ),
       seq(
         from = ci_vec[2], #median
         to = ci_vec[2] +
-          Mod360.180(ci_vec[3] - ci_vec[2]), #upper
+          Mod360.180(
+            ci_vec[3] - ci_vec[2]
+          ), #upper
         length.out = 1e2 / 2
       )
     )
@@ -1371,18 +1885,24 @@ PlotCI_vM <- function(ci_vec, col = 'salmon', lwd = 2, radius = 0.95, ...) {
     ...
   )
   if (!is.na(ci_vec[4])) {
-    angle_seq2 <-
+    angle_seq2 =
       c(
         seq(
           from = ci_vec[1 + 3],
           to = ci_vec[1 + 3] +
-            Mod360.180(ci_vec[2 + 3] - ci_vec[1 + 3]),
+            Mod360.180(
+              ci_vec[2 + 3] -
+                ci_vec[1 + 3]
+            ),
           length.out = 1e2 / 2
         ),
         seq(
           from = ci_vec[2 + 3],
           to = ci_vec[2 + 3] +
-            Mod360.180(ci_vec[3 + 3] - ci_vec[2 + 3]),
+            Mod360.180(
+              ci_vec[3 + 3] -
+                ci_vec[2 + 3]
+            ),
           length.out = 1e2 / 2
         )
       )
@@ -1399,7 +1919,7 @@ PlotCI_vM <- function(ci_vec, col = 'salmon', lwd = 2, radius = 0.95, ...) {
 
 #Overlay mean-vector arrow(s) from circMLE model parameters onto an existing circular plot.
 #Arrow length is scaled by A1(kappa) (mean resultant length); width scales with mixture weight.
-PlotMV_circMLE <- function(
+PlotMV_circMLE = function(
   mod_par,
   au = 'degrees',
   ar = 'clock',
@@ -1408,8 +1928,14 @@ PlotMV_circMLE <- function(
   ...
 ) {
   #passed to arrows.circular()
-  m1 <- with(mod_par, {
-    circular(mu1, unit = au, rotation = ar, modulo = '2pi', zero = pi / 2)
+  m1 = with(mod_par, {
+    circular(
+      mu1,
+      unit = au,
+      rotation = ar,
+      modulo = '2pi',
+      zero = pi / 2
+    )
   })
   with(mod_par, {
     arrows.circular(
@@ -1422,8 +1948,14 @@ PlotMV_circMLE <- function(
     )
   })
   if (!is.na(mod_par$mu2)) {
-    m2 <- with(mod_par, {
-      circular(mu2, unit = au, rotation = ar, modulo = '2pi', zero = pi / 2)
+    m2 = with(mod_par, {
+      circular(
+        mu2,
+        unit = au,
+        rotation = ar,
+        modulo = '2pi',
+        zero = pi / 2
+      )
     })
     with(mod_par, {
       arrows.circular(
@@ -1440,7 +1972,7 @@ PlotMV_circMLE <- function(
 
 #Assemble a model-comparison table (log-likelihood, deviance, rank, df) for LR testing.
 #Set bimod = TRUE to include a bimodal ('pairs multi') model alongside same/diff models.
-CollectDetails <- function(
+CollectDetails = function(
   ll,
   dts = 'all',
   bimod = FALSE, # whether a bimodal version is also considered
@@ -1449,19 +1981,38 @@ CollectDetails <- function(
   if (!bimod) {
     with(subset(ll, dataset == dts), {
       data.frame(
-        modnm = c('pairs same', 'pairs diff'),
+        modnm = c(
+          'pairs same',
+          'pairs diff'
+        ),
         ll = c(
-          loglikelihood[model %in% 'same'],
-          loglikelihood[model %in% 'diff']
+          loglikelihood[
+            model %in% 'same'
+          ],
+          loglikelihood[
+            model %in% 'diff'
+          ]
         ),
         deviance = c(
-          -2 * loglikelihood[model %in% 'same'],
-          -2 * loglikelihood[model %in% 'diff']
+          -2 *
+            loglikelihood[
+              model %in% 'same'
+            ],
+          -2 *
+            loglikelihood[
+              model %in% 'diff'
+            ]
         ),
         rnk = rank(
           c(
-            -2 * loglikelihood[model %in% 'same'],
-            -2 * loglikelihood[model %in% 'diff']
+            -2 *
+              loglikelihood[
+                model %in% 'same'
+              ],
+            -2 *
+              loglikelihood[
+                model %in% 'diff'
+              ]
           )
         ), #paired differences use fewer observations, don't include in ranking
         df = c(1, 2)
@@ -1470,22 +2021,50 @@ CollectDetails <- function(
   } else {
     with(subset(ll, dataset == dts), {
       data.frame(
-        modnm = c('pairs same', 'pairs diff', 'pairs multi'),
+        modnm = c(
+          'pairs same',
+          'pairs diff',
+          'pairs multi'
+        ),
         ll = c(
-          loglikelihood[model %in% 'same'],
-          loglikelihood[model %in% 'diff'],
-          loglikelihood[model %in% 'multi']
+          loglikelihood[
+            model %in% 'same'
+          ],
+          loglikelihood[
+            model %in% 'diff'
+          ],
+          loglikelihood[
+            model %in% 'multi'
+          ]
         ),
         deviance = c(
-          -2 * loglikelihood[model %in% 'same'],
-          -2 * loglikelihood[model %in% 'diff'],
-          -2 * loglikelihood[model %in% 'multi']
+          -2 *
+            loglikelihood[
+              model %in% 'same'
+            ],
+          -2 *
+            loglikelihood[
+              model %in% 'diff'
+            ],
+          -2 *
+            loglikelihood[
+              model %in% 'multi'
+            ]
         ),
         rnk = rank(
           c(
-            -2 * loglikelihood[model %in% 'same'],
-            -2 * loglikelihood[model %in% 'diff'],
-            -2 * loglikelihood[model %in% 'multi']
+            -2 *
+              loglikelihood[
+                model %in% 'same'
+              ],
+            -2 *
+              loglikelihood[
+                model %in% 'diff'
+              ],
+            -2 *
+              loglikelihood[
+                model %in% 'multi'
+              ]
           )
         ), #paired differences use fewer observations, don't include in ranking
         df = c(1, 2, 5)
@@ -1498,67 +2077,105 @@ CollectDetails <- function(
 #Perform a single likelihood ratio test specified by tst on a CollectDetails() table.
 #Supported tests: 'uniformity', 'trials_same_mean', 'pairs_diff_zero',
 #'pairs_multi_zero', 'pairs_multi_diff'. Returns chi-squared, df, p, and BH-adjusted p.
-LR_calc <- function(tst, mdt) {
+LR_calc = function(tst, mdt) {
   #collect the deviances for h0 and h1 and calculate the difference in degrees of freedom
-  lr_res <-
+  lr_res =
     with(mdt, {
       switch(
         EXPR = tst,
         #test for uniformity (i.e. more comprehensive Rayleigh test)
         uniformity = data.frame(
-          dev0 = deviance[modnm == 'uniform'], #null hypothesis: uniform distribution
+          dev0 = deviance[
+            modnm == 'uniform'
+          ], #null hypothesis: uniform distribution
           dev1 = deviance[rnk == 1], #lowest rank is most likely model, any non-uniform distribution
           d.f. = df[rnk == 1] #uniform has 0 degrees of freedom, test degrees of freedom are best model - 0
         ),
         #test for unpaired grand mean
         trials_same_mean = data.frame(
           dev0 = deviance[rnk == 2], #null hypothesis: trials don't differ
-          dev1 = deviance[modnm == 'trial mean'], #within trial obs. share a mean, expect lower deviance with more params
-          d.f. = df[modnm == 'trial mean'] -
+          dev1 = deviance[
+            modnm == 'trial mean'
+          ], #within trial obs. share a mean, expect lower deviance with more params
+          d.f. = df[
+            modnm == 'trial mean'
+          ] -
             df[rnk == 2] #2nd best fitting model
         ),
         #test for nonzero differences of pairs
         pairs_diff_zero = data.frame(
-          dev0 = deviance[modnm == 'pairs same'], #null hypothesis: trials don't differ
-          dev1 = deviance[modnm == 'pairs diff'], #within trial obs. share a mean, expect lower deviance with more params
-          d.f. = df[modnm == 'pairs diff'] -
+          dev0 = deviance[
+            modnm == 'pairs same'
+          ], #null hypothesis: trials don't differ
+          dev1 = deviance[
+            modnm == 'pairs diff'
+          ], #within trial obs. share a mean, expect lower deviance with more params
+          d.f. = df[
+            modnm == 'pairs diff'
+          ] -
             df[modnm == 'pairs same'] #grand mean has half the number of params
         ),
         #test for nonzero multimodal differences of pairs
         pairs_multi_zero = data.frame(
-          dev0 = deviance[modnm == 'pairs same'], #null hypothesis: trials don't differ
-          dev1 = deviance[modnm == 'pairs multi'], #within trial obs. share a mean, expect lower deviance with more params
-          d.f. = df[modnm == 'pairs multi'] -
+          dev0 = deviance[
+            modnm == 'pairs same'
+          ], #null hypothesis: trials don't differ
+          dev1 = deviance[
+            modnm == 'pairs multi'
+          ], #within trial obs. share a mean, expect lower deviance with more params
+          d.f. = df[
+            modnm == 'pairs multi'
+          ] -
             df[modnm == 'pairs same'] #grand mean has half the number of params
         ),
         #test for multimodal rather than unimodal differences of pairs
         pairs_multi_diff = data.frame(
-          dev0 = deviance[modnm == 'pairs diff'], #null hypothesis: trials don't differ
-          dev1 = deviance[modnm == 'pairs multi'], #within trial obs. share a mean, expect lower deviance with more params
-          d.f. = df[modnm == 'pairs multi'] -
+          dev0 = deviance[
+            modnm == 'pairs diff'
+          ], #null hypothesis: trials don't differ
+          dev1 = deviance[
+            modnm == 'pairs multi'
+          ], #within trial obs. share a mean, expect lower deviance with more params
+          d.f. = df[
+            modnm == 'pairs multi'
+          ] -
             df[modnm == 'pairs diff'] #grand mean has half the number of params
         ),
       )
     })
   #calculate the change in deviance (chi-squared distributed)
-  lr_res <- within(lr_res, {
-    chi_squared <- abs(unlist(dev0) - unlist(dev1))
+  lr_res = within(lr_res, {
+    chi_squared = abs(
+      unlist(dev0) - unlist(dev1)
+    )
   })
   #calculate the p value
-  lr_res <- within(lr_res, {
-    p <- pchisq(q = unlist(chi_squared), df = unlist(d.f.), lower.tail = FALSE)
+  lr_res = within(lr_res, {
+    p = pchisq(
+      q = unlist(chi_squared),
+      df = unlist(d.f.),
+      lower.tail = FALSE
+    )
   })
   #adjust for multiple comparisons (3 in this case)
-  lr_res <- within(lr_res, {
-    p_adjusted <- p.adjust(p = p, method = 'BH', n = length(p)) #could this be flexible?
+  lr_res = within(lr_res, {
+    p_adjusted = p.adjust(
+      p = p,
+      method = 'BH',
+      n = length(p)
+    ) #could this be flexible?
   })
   return(lr_res)
 }
 #Perform multiple likelihood ratio tests in one call; tst is a character vector of test names.
 #Returns a matrix with columns dev0/dev1/d.f./chi_squared/p/p_adjusted, one row per test.
-LR_calc_lst <- function(tst, mdt, digits = 6) {
+LR_calc_lst = function(
+  tst,
+  mdt,
+  digits = 6
+) {
   #collect the deviances for h0 and h1 and calculate the difference in degrees of freedom
-  lr_res <-
+  lr_res =
     with(mdt, {
       data.frame(
         t(
@@ -1567,62 +2184,106 @@ LR_calc_lst <- function(tst, mdt, digits = 6) {
             FUN = switch,
             #test for uniformity (i.e. more comprehensive Rayleigh test)
             uniformity = data.frame(
-              dev0 = deviance[modnm == 'uniform'], #null hypothesis: uniform distribution
+              dev0 = deviance[
+                modnm == 'uniform'
+              ], #null hypothesis: uniform distribution
               dev1 = deviance[rnk == 1], #lowest rank is most likely model, any non-uniform distribution
               d.f. = df[rnk == 1] #uniform has 0 degrees of freedom, test degrees of freedom are best model - 0
             ),
             #test for unpaired grand mean
             trials_same_mean = data.frame(
               dev0 = deviance[rnk == 2], #null hypothesis: trials don't differ
-              dev1 = deviance[modnm == 'trial mean'], #within trial obs. share a mean, expect lower deviance with more params
-              d.f. = df[modnm == 'trial mean'] -
+              dev1 = deviance[
+                modnm == 'trial mean'
+              ], #within trial obs. share a mean, expect lower deviance with more params
+              d.f. = df[
+                modnm == 'trial mean'
+              ] -
                 df[rnk == 2] #2nd best fitting model
             ),
             #test for nonzero differences of pairs
             pairs_diff_zero = data.frame(
-              dev0 = deviance[modnm == 'pairs same'], #null hypothesis: trials don't differ
-              dev1 = deviance[modnm == 'pairs diff'], #within trial obs. share a mean, expect lower deviance with more params
-              d.f. = df[modnm == 'pairs diff'] -
-                df[modnm == 'pairs same'] #grand mean has half the number of params
+              dev0 = deviance[
+                modnm == 'pairs same'
+              ], #null hypothesis: trials don't differ
+              dev1 = deviance[
+                modnm == 'pairs diff'
+              ], #within trial obs. share a mean, expect lower deviance with more params
+              d.f. = df[
+                modnm == 'pairs diff'
+              ] -
+                df[
+                  modnm == 'pairs same'
+                ] #grand mean has half the number of params
             ),
             #test for nonzero multimodal differences of pairs
             pairs_multi_zero = data.frame(
-              dev0 = deviance[modnm == 'pairs same'], #null hypothesis: trials don't differ
-              dev1 = deviance[modnm == 'pairs multi'], #within trial obs. share a mean, expect lower deviance with more params
-              d.f. = df[modnm == 'pairs multi'] -
-                df[modnm == 'pairs same'] #grand mean has half the number of params
+              dev0 = deviance[
+                modnm == 'pairs same'
+              ], #null hypothesis: trials don't differ
+              dev1 = deviance[
+                modnm == 'pairs multi'
+              ], #within trial obs. share a mean, expect lower deviance with more params
+              d.f. = df[
+                modnm == 'pairs multi'
+              ] -
+                df[
+                  modnm == 'pairs same'
+                ] #grand mean has half the number of params
             ),
             #test for multimodal rather than unimodal differences of pairs
             pairs_multi_diff = data.frame(
-              dev0 = deviance[modnm == 'pairs diff'], #null hypothesis: trials don't differ
-              dev1 = deviance[modnm == 'pairs multi'], #within trial obs. share a mean, expect lower deviance with more params
-              d.f. = df[modnm == 'pairs multi'] -
-                df[modnm == 'pairs diff'] #grand mean has half the number of params
+              dev0 = deviance[
+                modnm == 'pairs diff'
+              ], #null hypothesis: trials don't differ
+              dev1 = deviance[
+                modnm == 'pairs multi'
+              ], #within trial obs. share a mean, expect lower deviance with more params
+              d.f. = df[
+                modnm == 'pairs multi'
+              ] -
+                df[
+                  modnm == 'pairs diff'
+                ] #grand mean has half the number of params
             ),
           )
         )
       )
     })
   #calculate the change in deviance (chi-squared distributed)
-  lr_res <- within(lr_res, expr = {
-    chi_squared <- abs(unlist(dev0) - unlist(dev1))
+  lr_res = within(lr_res, expr = {
+    chi_squared = abs(
+      unlist(dev0) - unlist(dev1)
+    )
   })
 
   #calculate the p value
-  lr_res <- within(lr_res, {
-    p <- pchisq(q = unlist(chi_squared), df = unlist(d.f.), lower.tail = FALSE)
+  lr_res = within(lr_res, {
+    p = pchisq(
+      q = unlist(chi_squared),
+      df = unlist(d.f.),
+      lower.tail = FALSE
+    )
   })
   #adjust for multiple comparisons (3 in this case)
-  lr_res <- within(lr_res, {
-    p_adjusted <- p.adjust(p = p, method = 'BH', n = length(p)) #could this be flexible?
+  lr_res = within(lr_res, {
+    p_adjusted = p.adjust(
+      p = p,
+      method = 'BH',
+      n = length(p)
+    ) #could this be flexible?
   })
-  lr_res <- apply(X = lr_res, MARGIN = 2, FUN = unlist) #for whatever reason entries are still in list format
+  lr_res = apply(
+    X = lr_res,
+    MARGIN = 2,
+    FUN = unlist
+  ) #for whatever reason entries are still in list format
   return(lr_res)
 }
 
 #Build a BIC-based model-comparison table analogous to CollectDetails().
 #BIC is computed as deviance + df * log(n_obs); n_obs must be supplied explicitly.
-BFDetails <- function(
+BFDetails = function(
   ll,
   dts = 'all',
   bimod = FALSE,
@@ -1636,19 +2297,36 @@ BFDetails <- function(
   }
 
   # Base models
-  mod_names <- c('pairs same', 'pairs diff')
-  models_filter <- c('same', 'diff')
-  degrees_of_freedom <- c(1, 2)
+  mod_names = c(
+    'pairs same',
+    'pairs diff'
+  )
+  models_filter = c('same', 'diff')
+  degrees_of_freedom = c(1, 2)
 
   if (bimod) {
-    mod_names <- c(mod_names, 'pairs multi')
-    models_filter <- c(models_filter, 'multi')
-    degrees_of_freedom <- c(degrees_of_freedom, 5)
+    mod_names = c(
+      mod_names,
+      'pairs multi'
+    )
+    models_filter = c(
+      models_filter,
+      'multi'
+    )
+    degrees_of_freedom = c(
+      degrees_of_freedom,
+      5
+    )
   }
 
   with(subset(ll, dataset == dts), {
-    sub_ll <- sapply(models_filter, function(m) loglikelihood[model %in% m])
-    devs <- -2 * sub_ll
+    sub_ll = sapply(
+      models_filter,
+      function(m) {
+        loglikelihood[model %in% m]
+      }
+    )
+    devs = -2 * sub_ll
 
     data.frame(
       modnm = mod_names,
@@ -1657,41 +2335,52 @@ BFDetails <- function(
       rnk = rank(devs),
       df = degrees_of_freedom,
       n = rep(n_obs, length(mod_names)), # Store sample size
-      bic = devs + degrees_of_freedom * log(n_obs) # Calculate BIC
+      bic = devs +
+        degrees_of_freedom * log(n_obs) # Calculate BIC
     )
   })
 }
 
 #Return a human-readable interpretation string for a hypothesis test result.
 #Considers both the direction of the deviance change and the adjusted p-value.
-H1label <- function(tst, d0, d1, pa) {
+H1label = function(tst, d0, d1, pa) {
   switch(
     EXPR = tst,
-    uniformity = if (d0 > d1 & pa < 0.05) {
+    uniformity = if (
+      d0 > d1 & pa < 0.05
+    ) {
       # data may be oriented, not significantly oriented, or significantly disoriented
       '*data are significantly oriented'
     } else {
       'data _are not_ significantly oriented'
     },
-    trials_same_mean = if (d0 > d1 & pa < 0.05) {
+    trials_same_mean = if (
+      d0 > d1 & pa < 0.05
+    ) {
       # trials significantly differ in mean, not significantly differ in mean, or share a significant mean
       '*trial means differ significantly'
     } else {
       'trial means _do not_ differ significantly'
     },
-    pairs_diff_zero = if (d0 > d1 & pa < 0.05) {
+    pairs_diff_zero = if (
+      d0 > d1 & pa < 0.05
+    ) {
       # trials significantly differ in mean, not significantly differ in mean, or share a significant mean
       '*pairs differ significantly'
     } else {
       'pairs _do not_ differ significantly'
     },
-    pairs_multi_zero = if (d0 > d1 & pa < 0.05) {
+    pairs_multi_zero = if (
+      d0 > d1 & pa < 0.05
+    ) {
       # trials significantly differ with multiple means, not significantly differ in mean, or share a significant mean
       '*pairs differ significantly with multiple means'
     } else {
       'pairs _do not_ differ significantly with multiple means'
     },
-    pairs_multi_diff = if (d0 > d1 & pa < 0.05) {
+    pairs_multi_diff = if (
+      d0 > d1 & pa < 0.05
+    ) {
       # trials significantly differ with multiple means, not significantly differ in mean, or share a significant mean
       '*pairs differ significantly with no single mean'
     } else {
@@ -1703,9 +2392,9 @@ H1label <- function(tst, d0, d1, pa) {
 
 #Calculate approximate Bayes factors from BIC differences (Schwarz approximation).
 #Returns delta_bic, BF10 (evidence for H1 over H0), and BF01 (evidence for H0 over H1).
-BF_calc <- function(tst, mdt) {
+BF_calc = function(tst, mdt) {
   # 1. Isolate H0 and H1 based on the requested test
-  hypotheses <- with(mdt, {
+  hypotheses = with(mdt, {
     switch(
       EXPR = tst,
       uniformity = data.frame(
@@ -1714,28 +2403,44 @@ BF_calc <- function(tst, mdt) {
       ),
       trials_same_mean = data.frame(
         bic0 = bic[rnk == 2],
-        bic1 = bic[modnm == 'trial mean']
+        bic1 = bic[
+          modnm == 'trial mean'
+        ]
       ),
       pairs_diff_zero = data.frame(
-        bic0 = bic[modnm == 'pairs same'],
-        bic1 = bic[modnm == 'pairs diff']
+        bic0 = bic[
+          modnm == 'pairs same'
+        ],
+        bic1 = bic[
+          modnm == 'pairs diff'
+        ]
       ),
       pairs_multi_zero = data.frame(
-        bic0 = bic[modnm == 'pairs same'],
-        bic1 = bic[modnm == 'pairs multi']
+        bic0 = bic[
+          modnm == 'pairs same'
+        ],
+        bic1 = bic[
+          modnm == 'pairs multi'
+        ]
       ),
       pairs_multi_diff = data.frame(
-        bic0 = bic[modnm == 'pairs diff'],
-        bic1 = bic[modnm == 'pairs multi']
+        bic0 = bic[
+          modnm == 'pairs diff'
+        ],
+        bic1 = bic[
+          modnm == 'pairs multi'
+        ]
       )
     )
   })
 
   # 2. Calculate Bayes Factor using the BIC difference
-  hypotheses <- within(hypotheses, {
-    delta_bic <- bic0 - bic1 # Positive value means H1 fits better relative to its complexity
-    Bayes_factor_1.0 <- exp(delta_bic / 2) # Evidence for H1 vs H0
-    BF01 <- 1 / Bayes_factor_1.0 # Evidence for H0 vs H1
+  hypotheses = within(hypotheses, {
+    delta_bic = bic0 - bic1 # Positive value means H1 fits better relative to its complexity
+    Bayes_factor_1.0 = exp(
+      delta_bic / 2
+    ) # Evidence for H1 vs H0
+    BF01 = 1 / Bayes_factor_1.0 # Evidence for H0 vs H1
   })
 
   return(hypotheses)
@@ -1743,8 +2448,13 @@ BF_calc <- function(tst, mdt) {
 
 #Return a text label describing strength of evidence given a Bayes factor value (BF10).
 #Thresholds follow the Jeffreys/Kass-Raftery scale (Decisive ≥100, Strong ≥10, Moderate ≥3).
-BFlabel <- function(tst, Bayes_factor_1.0) {
-  evidence <- if (Bayes_factor_1.0 >= 100) {
+BFlabel = function(
+  tst,
+  Bayes_factor_1.0
+) {
+  evidence = if (
+    Bayes_factor_1.0 >= 100
+  ) {
     "Decisive evidence for H1"
   } else if (Bayes_factor_1.0 >= 10) {
     "*Strong evidence for H1"
@@ -1756,9 +2466,13 @@ BFlabel <- function(tst, Bayes_factor_1.0) {
     "No evidence preference"
   } else if (Bayes_factor_1.0 > 1 / 3) {
     "Anecdotal evidence for H0"
-  } else if (Bayes_factor_1.0 > 1 / 10) {
+  } else if (
+    Bayes_factor_1.0 > 1 / 10
+  ) {
     "Moderate evidence for H0"
-  } else if (Bayes_factor_1.0 > 1 / 100) {
+  } else if (
+    Bayes_factor_1.0 > 1 / 100
+  ) {
     "Strong evidence for H0"
   } else {
     "Decisive evidence for H0"
@@ -1769,7 +2483,7 @@ BFlabel <- function(tst, Bayes_factor_1.0) {
 #Bootstrap a confidence interval for a single parameter of a bimodal CircMLE model.
 #Resamples angles with replacement n times, refits the model, and returns quantiles.
 #param selects which model parameter to summarise (default 5 = mixture weight lambda).
-BootBimod <- function(
+BootBimod = function(
   angles, #vector of angles fitted (used for sample size)
   model = 'M5A',
   m1 = 'right',
@@ -1780,9 +2494,13 @@ BootBimod <- function(
   interval = 0.95, #confidence interval to calculate
   speedup_parallel = TRUE
 ) {
-  rad_angles <- rad(as.numeric(angles))
-  Estfun <- function(ang = rad_angles, model = model, niter = niter) {
-    pr <- suppressWarnings(
+  rad_angles = rad(as.numeric(angles))
+  Estfun = function(
+    ang = rad_angles,
+    model = model,
+    niter = niter
+  ) {
+    pr = suppressWarnings(
       Exec(str2expression(
         paste0(
           model,
@@ -1801,9 +2519,12 @@ BootBimod <- function(
       ))
     )
     #mod the estimates to (-pi, pi)
-    pr[c(1, 3)] <- mod_circular(pr[c(1, 3)])
+    pr[c(1, 3)] = mod_circular(pr[c(
+      1,
+      3
+    )])
     #find the mode of interest
-    pr[5] <- switch(
+    pr[5] = switch(
       EXPR = m1,
       right = if (pr[1] < pr[3]) {
         # rightmost
@@ -1825,7 +2546,9 @@ BootBimod <- function(
   }
   if (speedup_parallel) {
     #3x faster
-    cl <- parallel::makePSOCKcluster(parallel::detectCores() - 1)
+    cl = parallel::makePSOCKcluster(
+      parallel::detectCores() - 1
+    )
     parallel::clusterExport(
       cl = cl,
       varlist = c(
@@ -1838,18 +2561,26 @@ BootBimod <- function(
     )
     parallel::clusterExport(
       cl = cl,
-      varlist = c('rad_angles', 'model', 'niter'),
+      varlist = c(
+        'rad_angles',
+        'model',
+        'niter'
+      ),
       envir = environment()
     )
     #bootstrap the parameter
-    pr_est <-
+    pr_est =
       parallel::parSapply(
         cl = cl,
         X = 1:n,
         FUN = function(i) {
           eval.parent(
             {
-              Estfun(ang = rad_angles, model = model, niter = niter)
+              Estfun(
+                ang = rad_angles,
+                model = model,
+                niter = niter
+              )
             }
           )
         },
@@ -1857,12 +2588,16 @@ BootBimod <- function(
       )
     parallel::stopCluster(cl)
   } else {
-    pr_est <- sapply(
+    pr_est = sapply(
       X = 1:n,
       FUN = function(i) {
         eval.parent(
           {
-            Estfun(ang = rad_angles, model = model, niter = niter)
+            Estfun(
+              ang = rad_angles,
+              model = model,
+              niter = niter
+            )
           }
         )
       },
@@ -1873,7 +2608,9 @@ BootBimod <- function(
     if (calc_q) {
       quantile(
         pr_est,
-        probs = c(0, 0.5, 1) + c(1, 0, -1) * ((1 - interval) / 2)
+        probs = c(0, 0.5, 1) +
+          c(1, 0, -1) *
+            ((1 - interval) / 2)
       )
     } else {
       pr_est
@@ -1883,54 +2620,94 @@ BootBimod <- function(
 
 
 # Extract model summaries -------------------------------------------------
-ART_extract <- function(mod, co, adjust = 'sidak', method = 'pairwise', ...) {
+ART_extract = function(
+  mod,
+  co,
+  adjust = 'sidak',
+  method = 'pairwise',
+  ...
+) {
   #passed to emmeans::contrast
-  co1 <- sub(x = co, pattern = ':', replacement = '')
-  fo <- as.formula(paste('~', co1))
-  em <- emmeans(artlm.con(mod, co), specs = fo)
-  ct <- contrast(em, method = method, adjust = adjust, ...)
+  co1 = sub(
+    x = co,
+    pattern = ':',
+    replacement = ''
+  )
+  fo = as.formula(paste('~', co1))
+  em = emmeans(
+    artlm.con(mod, co),
+    specs = fo
+  )
+  ct = contrast(
+    em,
+    method = method,
+    adjust = adjust,
+    ...
+  )
   return(ct)
 }
 
 #calculate rhat for circular variables with extreme ranges
-Rhat_unwrap <- function(x) {
+Rhat_unwrap = function(x) {
   rhat(unwrap_circular(x))
 }
 
 #Compute Rhat convergence diagnostics for circular parameters in a brms model.
 #Unwraps angles before computing Rhat to avoid inflated values from circular discontinuities.
 #variable is a regex pattern matched against draw variable names (default: '^b_zmu').
-UnwrapRhats <- function(
+UnwrapRhats = function(
   uwmod,
   variable = '^b_zmu',
   regex = TRUE,
   digits = 5,
   ...
 ) {
-  rh <-
+  rh =
     apply(
-      X = as_draws_df(uwmod, variable = variable, regex = regex, ...),
+      X = as_draws_df(
+        uwmod,
+        variable = variable,
+        regex = regex,
+        ...
+      ),
       MARGIN = 2,
       FUN = Rhat_unwrap
     )
-  nrh <- names(rh)
-  rh <- rh[!(nrh %in% c(".chain", ".iteration", ".draw"))]
+  nrh = names(rh)
+  rh = rh[
+    !(nrh %in%
+      c(
+        ".chain",
+        ".iteration",
+        ".draw"
+      ))
+  ]
   return(round(rh, digits = digits))
 }
 
 #summarise all circular rhats
-SumUwRhats <- function(x, var = NULL) {
-  summary(UnwrapRhats(x, variable = var))
+SumUwRhats = function(x, var = NULL) {
+  summary(UnwrapRhats(
+    x,
+    variable = var
+  ))
 }
 
 #calculate log likelihood for a brms von Mises model
-log_lik_unwrap_von_mises <- function(i, prep) {
+log_lik_unwrap_von_mises = function(
+  i,
+  prep
+) {
   #remove circular formatting?
-  prep$data$Y <- as.numeric(prep$data$Y)
+  prep$data$Y = as.numeric(prep$data$Y)
 
-  args <- list(
+  args = list(
     mu = get_dpar(prep, "mu", i),
-    kappa = get_dpar(prep, "kappa", i = i)
+    kappa = get_dpar(
+      prep,
+      "kappa",
+      i = i
+    )
   )
 
   # ----------- log_lik helper-functions -----------
@@ -1940,20 +2717,48 @@ log_lik_unwrap_von_mises <- function(i, prep) {
   # @param args additional arguments passed to pdf and cdf
   # @param prep a brmsprep object
   # @return vector of log_lik values
-  log_lik_censor <- function(dist, args, i, prep) {
-    pdf <- get(paste0("d", dist), mode = "function")
-    cdf <- get(paste0("p", dist), mode = "function")
-    y <- prep$data$Y[i]
-    cens <- prep$data$cens[i]
+  log_lik_censor = function(
+    dist,
+    args,
+    i,
+    prep
+  ) {
+    pdf = get(
+      paste0("d", dist),
+      mode = "function"
+    )
+    cdf = get(
+      paste0("p", dist),
+      mode = "function"
+    )
+    y = prep$data$Y[i]
+    cens = prep$data$cens[i]
     if (is.null(cens) || cens == 0) {
-      x <- do_call(pdf, c(y, args, log = TRUE))
+      x = do_call(
+        pdf,
+        c(y, args, log = TRUE)
+      )
     } else if (cens == 1) {
-      x <- do_call(cdf, c(y, args, lower.tail = FALSE, log.p = TRUE))
+      x = do_call(
+        cdf,
+        c(
+          y,
+          args,
+          lower.tail = FALSE,
+          log.p = TRUE
+        )
+      )
     } else if (cens == -1) {
-      x <- do_call(cdf, c(y, args, log.p = TRUE))
+      x = do_call(
+        cdf,
+        c(y, args, log.p = TRUE)
+      )
     } else if (cens == 2) {
-      rcens <- prep$data$rcens[i]
-      x <- log(do_call(cdf, c(rcens, args)) - do_call(cdf, c(y, args)))
+      rcens = prep$data$rcens[i]
+      x = log(
+        do_call(cdf, c(rcens, args)) -
+          do_call(cdf, c(y, args))
+      )
     }
     x
   }
@@ -1965,23 +2770,39 @@ log_lik_unwrap_von_mises <- function(i, prep) {
   # @param i observation number
   # @param prep a brmsprep object
   # @return vector of log_lik values
-  log_lik_truncate <- function(x, cdf, args, i, prep) {
-    lb <- prep$data[["lb"]][i]
-    ub <- prep$data[["ub"]][i]
+  log_lik_truncate = function(
+    x,
+    cdf,
+    args,
+    i,
+    prep
+  ) {
+    lb = prep$data[["lb"]][i]
+    ub = prep$data[["ub"]][i]
     if (is.null(lb) && is.null(ub)) {
       return(x)
     }
     if (!is.null(lb)) {
-      log_cdf_lb <- do_call(cdf, c(lb, args, log.p = TRUE))
+      log_cdf_lb = do_call(
+        cdf,
+        c(lb, args, log.p = TRUE)
+      )
     } else {
-      log_cdf_lb <- rep(-Inf, length(x))
+      log_cdf_lb = rep(-Inf, length(x))
     }
     if (!is.null(ub)) {
-      log_cdf_ub <- do_call(cdf, c(ub, args, log.p = TRUE))
+      log_cdf_ub = do_call(
+        cdf,
+        c(ub, args, log.p = TRUE)
+      )
     } else {
-      log_cdf_ub <- rep(0, length(x))
+      log_cdf_ub = rep(0, length(x))
     }
-    x - log_diff_exp(log_cdf_ub, log_cdf_lb)
+    x -
+      log_diff_exp(
+        log_cdf_ub,
+        log_cdf_lb
+      )
   }
 
   # weight log_lik values according to defined weights
@@ -1989,34 +2810,42 @@ log_lik_unwrap_von_mises <- function(i, prep) {
   # @param i observation number
   # @param prep a brmsprep object
   # @return vector of log_lik values
-  log_lik_weight <- function(x, i, prep) {
-    weight <- prep$data$weights[i]
+  log_lik_weight = function(
+    x,
+    i,
+    prep
+  ) {
+    weight = prep$data$weights[i]
     if (!is.null(weight)) {
-      x <- x * weight
+      x = x * weight
     }
     x
   }
 
-  out <- log_lik_censor(
+  out = log_lik_censor(
     dist = "von_mises",
     args = args,
     i = i,
     prep = prep
   )
-  out <- log_lik_truncate(
+  out = log_lik_truncate(
     out,
     cdf = pvon_mises,
     args = args,
     i = i,
     prep = prep
   )
-  log_lik_weight(out, i = i, prep = prep)
+  log_lik_weight(
+    out,
+    i = i,
+    prep = prep
+  )
 }
 
 #Add filled 2D density contours to an existing plot from posterior draw samples.
 #x_string and y_string are evaluated expressions (typically Cartesian projections of mu/kappa).
 #Optionally crops density outside the unit circle (cropc = TRUE).
-Draws2Cont <- function(
+Draws2Cont = function(
   draws,
   palette = 'Heat 2',
   nlevels = 20,
@@ -2027,7 +2856,7 @@ Draws2Cont <- function(
   cropc = FALSE, #crop region outside circle
   denstype = 'relative' # 'normalised' or 'relative' (normalised fails to plot low densities)
 ) {
-  kdc <- with(draws, {
+  kdc = with(draws, {
     MASS::kde2d(
       x = eval(str2lang(x_string)),
       y = eval(str2lang(y_string)),
@@ -2035,11 +2864,14 @@ Draws2Cont <- function(
     )
   })
   if (cropc) {
-    xy <- with(kdc, expand.grid(x = x, y = y)) #find coordinates of z variable
-    idc <- with(xy, x^2 + y^2 < 1.0)
+    xy = with(
+      kdc,
+      expand.grid(x = x, y = y)
+    ) #find coordinates of z variable
+    idc = with(xy, x^2 + y^2 < 1.0)
     #crop edge of circle
-    kdc <- within(kdc, {
-      z[!idc] <- 0
+    kdc = within(kdc, {
+      z[!idc] = 0
     })
   }
   with(kdc, {
@@ -2067,7 +2899,7 @@ Draws2Cont <- function(
 
 #Plot a histogram with the density axis horizontal and the data axis vertical.
 #Useful for placing a distribution alongside a scatter plot that shares the y-axis.
-VertHist <- function(
+VertHist = function(
   data, # numerical data vector
   breaks = 1e2,
   ylab = 'data',
@@ -2079,7 +2911,7 @@ VertHist <- function(
   axes = TRUE,
   ...
 ) {
-  hst <- hist(
+  hst = hist(
     x = data, # calculate the histogram but don't plot it
     breaks = breaks, # user defined breaks
     plot = FALSE
@@ -2116,7 +2948,11 @@ VertHist <- function(
 #Compute Mardia's circular standard deviation from a von Mises concentration parameter kappa.
 #Uses the analytical formula sqrt(-2 * log(A1(kappa))) by default;
 #a simulation-based alternative is also available via method = 'simulation'.
-MardiaSD <- function(k, method = 'analytical', n = 1e4) {
+MardiaSD = function(
+  k,
+  method = 'analytical',
+  n = 1e4
+) {
   switch(
     method,
     simulation = circular::sd.circular(
@@ -2129,7 +2965,9 @@ MardiaSD <- function(k, method = 'analytical', n = 1e4) {
         kappa = k
       )
     ),
-    analytical = sqrt(-2 * log(circular::A1(k))),
+    analytical = sqrt(
+      -2 * log(circular::A1(k))
+    ),
     sqrt(-2 * log(circular::A1(k)))
   )
 }
@@ -2138,22 +2976,22 @@ MardiaSD <- function(k, method = 'analytical', n = 1e4) {
 # Azimuth-Elevation Error Modelling ---------------------------------------
 #mu,phi parametrisation of beta distribution
 #probability density
-dBeta <- function(x, mu, phi, ...) {
-  alpha <- mu * phi
-  beta <- (1 - mu) * phi
+dBeta = function(x, mu, phi, ...) {
+  alpha = mu * phi
+  beta = (1 - mu) * phi
   return(dbeta(x, alpha, beta, ...))
 }
 
 #mu,phi parametrisation of beta distribution
 #quantile
-qBeta <- function(p, mu, phi, ...) {
-  alpha <- mu * phi
-  beta <- (1 - mu) * phi
+qBeta = function(p, mu, phi, ...) {
+  alpha = mu * phi
+  beta = (1 - mu) * phi
   return(qbeta(p, alpha, beta, ...))
 }
 
 #estimate minimum circular SD and concentration (across population)
-AzElEst <- function(
+AzElEst = function(
   sigma_phi, #circular SD and concentration
   alpha, #observed circular CD
   elevation, #known elevation
@@ -2166,19 +3004,35 @@ AzElEst <- function(
     phi_sd = 1.0 # wide prior
   )
 ) {
-  sigma <- abs(mod_circular(sigma_phi[1])) #a number between 0 and pi
-  phi <- exp(sigma_phi[2]) #a number between 0 and Inf
+  sigma = abs(mod_circular(sigma_phi[
+    1
+  ])) #a number between 0 and pi
+  phi = exp(sigma_phi[2]) #a number between 0 and Inf
   #expected circular SD for each elevation
-  est_alpha <- 2 * atan(tan(sigma / 2) / cos(rad(elevation)))
+  est_alpha = 2 *
+    atan(
+      tan(sigma / 2) /
+        cos(rad(elevation))
+    )
   #priors on low sigma and high concentration
-  pr_ll <- dnorm(x = sigma, mean = 0, sd = priors[1], log = TRUE) +
-    dnorm(x = log(phi), mean = log(priors[2]), sd = priors[3], log = TRUE)
+  pr_ll = dnorm(
+    x = sigma,
+    mean = 0,
+    sd = priors[1],
+    log = TRUE
+  ) +
+    dnorm(
+      x = log(phi),
+      mean = log(priors[2]),
+      sd = priors[3],
+      log = TRUE
+    )
   #can per-elevation alpha be approximated by a beta distribution
   #centred on the estimate?
 
   #calculate log likelihood for all SD angles
   #divide angles by 180° to get [0,1]
-  ll <- sum(mapply(
+  ll = sum(mapply(
     FUN = dBeta,
     x = alpha / pi, #circular SD [0,1]
     mu = est_alpha / pi, #estimated SD [0,1]
@@ -2190,34 +3044,47 @@ AzElEst <- function(
 }
 
 #wrapper function for optimising and processing
-AzElOptim <- function(
+AzElOptim = function(
   alpha,
   elevation,
   start_par = rnorm(2),
   ... # passed to optim
 ) {
-  sig_opt <- optim(
+  sig_opt = optim(
     par = rnorm(2), #starting values from normal(0,1)
     f = AzElEst,
     alpha = alpha,
     elevation = elevation,
     ...
   )
-  sig_opt <- within(sig_opt, {
+  sig_opt = within(sig_opt, {
     #optimised parameters
-    sigma <- abs(par[1])
-    phi <- exp(par[2])
+    sigma = abs(par[1])
+    phi = exp(par[2])
     #quantiles
-    lower <- pi * qBeta(p = 0.025, mu = sigma / pi, phi = phi)
-    upper <- pi * qBeta(p = 0.975, mu = sigma / pi, phi = phi)
+    lower = pi *
+      qBeta(
+        p = 0.025,
+        mu = sigma / pi,
+        phi = phi
+      )
+    upper = pi *
+      qBeta(
+        p = 0.975,
+        mu = sigma / pi,
+        phi = phi
+      )
     #variance of a beta distribution
-    var <- pi * ((sigma / pi) * (1 - sigma / pi)) / (phi + 1)
+    var = pi *
+      ((sigma / pi) *
+        (1 - sigma / pi)) /
+      (phi + 1)
     #perhaps the standard error?
-    se <- pi * (sqrt(var / pi))
+    se = pi * (sqrt(var / pi))
   })
 }
 
-PredEleError <-
+PredEleError =
   function(
     elevation, # elevation in radians
     sigma = NULL, # minimum error in radians (elevation == 0)
@@ -2225,14 +3092,18 @@ PredEleError <-
   ) {
     # kappa on identity scale
     if (all(is.null(c(sigma, kappa)))) {
-      stop("Either sigma or kappa needed to calculate azimuth error")
+      stop(
+        "Either sigma or kappa needed to calculate azimuth error"
+      )
     }
 
-    if (is.null(sigma) & !is.null(kappa)) {
-      sigma <- MardiaSD(kappa)
+    if (
+      is.null(sigma) & !is.null(kappa)
+    ) {
+      sigma = MardiaSD(kappa)
     }
 
-    alpha <- 2 *
+    alpha = 2 *
       atan(
         tan(sigma / 2) /
           cos(elevation)
@@ -2240,9 +3111,13 @@ PredEleError <-
     return(alpha)
   }
 
-LinesEleError <- function(
+LinesEleError = function(
   azel_list,
-  elevation = rad(seq(from = 0, to = 89, by = 1)),
+  elevation = rad(seq(
+    from = 0,
+    to = 89,
+    by = 1
+  )),
   col = 'black',
   ...
 ) {
@@ -2282,7 +3157,7 @@ LinesEleError <- function(
 }
 
 
-BetaEst <- function(x, mu_phi) {
+BetaEst = function(x, mu_phi) {
   return(
     -sum(mapply(
       FUN = dBeta,
@@ -2298,18 +3173,25 @@ BetaEst <- function(x, mu_phi) {
 }
 
 #LRtest for effect of elevation on azimuth error
-AzElTest <- function(
+AzElTest = function(
   alpha,
   elevation,
-  azel_list = AzElOptim(alpha, elevation),
+  azel_list = AzElOptim(
+    alpha,
+    elevation
+  ),
   ...
 ) {
   #passed to optim
-  est_alpha <- with(azel_list, {
-    2 * atan(tan(sigma / 2) / cos(rad(elevation)))
+  est_alpha = with(azel_list, {
+    2 *
+      atan(
+        tan(sigma / 2) /
+          cos(rad(elevation))
+      )
   })
 
-  ll_AzEl <- with(azel_list, {
+  ll_AzEl = with(azel_list, {
     sum(mapply(
       FUN = dBeta,
       x = alpha / pi,
@@ -2322,7 +3204,7 @@ AzElTest <- function(
     ))
   })
 
-  null_opt <- optim(
+  null_opt = optim(
     par = rnorm(2),
     #starting values from normal(0,1)
     f = BetaEst,
@@ -2330,16 +3212,27 @@ AzElTest <- function(
     ...
   )
 
-  res_table <- data.frame(
+  res_table = data.frame(
     mu = c(
       alt = deg(mean(est_alpha)),
-      null = deg(plogis(null_opt$par[1])) *
+      null = deg(plogis(null_opt$par[
+        1
+      ])) *
         pi
     ),
-    phi = c(alt = azel_list$phi, null = exp(null_opt$par[2])),
-    log_likelihood = c(alt = ll_AzEl, null = -(null_opt$value)),
+    phi = c(
+      alt = azel_list$phi,
+      null = exp(null_opt$par[2])
+    ),
+    log_likelihood = c(
+      alt = ll_AzEl,
+      null = -(null_opt$value)
+    ),
     bic = -2 *
-      c(alt = ll_AzEl, null = -(null_opt$value)) +
+      c(
+        alt = ll_AzEl,
+        null = -(null_opt$value)
+      ) +
       c(2, 2) * #N.B. both models really have the same d.f.
         log(length(alpha)),
     chi_sq = c(
@@ -2351,7 +3244,10 @@ AzElTest <- function(
             null = -(null_opt$value)
           ))
       )
-    )[rank(c(ll_AzEl, -(null_opt$value)))], #order test by likelihood
+    )[rank(c(
+      ll_AzEl,
+      -(null_opt$value)
+    ))], #order test by likelihood
     p_value = c(
       NA,
       pchisq(
@@ -2365,14 +3261,20 @@ AzElTest <- function(
         df = 1, #complexity penalty of one d.f. difference (although currently both same d.f.)
         lower.tail = FALSE
       )
-    )[rank(c(ll_AzEl, -(null_opt$value)))], #order test by likelihood
+    )[rank(c(
+      ll_AzEl,
+      -(null_opt$value)
+    ))], #order test by likelihood
     Bayes_factor = c(
       NA,
       1 /
         (exp(
           diff(
             -2 *
-              c(alt = ll_AzEl, null = -(null_opt$value)) +
+              c(
+                alt = ll_AzEl,
+                null = -(null_opt$value)
+              ) +
               c(2, 2) * #N.B. both models really have the same d.f.
                 log(length(alpha))
           ) /
@@ -2387,6 +3289,9 @@ AzElTest <- function(
         c(2, 2) * log(length(alpha))
     ))] #order by BIC
   )
-  row.names(res_table) <- c('alternative', 'null')
+  row.names(res_table) = c(
+    'alternative',
+    'null'
+  )
   return(res_table)
 }
