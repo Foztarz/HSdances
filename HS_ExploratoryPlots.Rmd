@@ -26,8 +26,10 @@ editor_options:
 - Select dances of interest +
 - Plot dances of interest +
 - Feeder angle plotting function +
-- Solar ephemeris plots
-- Elevation-accuracy plots
+- Solar ephemeris plots +
+- Elevation-accuracy plots +
+- Paired dances
+- All dances
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -585,7 +587,7 @@ What does the error distribution look like?
 Is it symmetrical, or is there a systematic offset?
 
 
-```{r calculate-ephemeris-error, fig.width = 6, fig.height = 10, dpi = 150}
+```{r calculate-ephemeris-error, fig.width = 5, fig.height = 7, dpi = 150}
 
 par(
   mfrow = c(2, 1),
@@ -695,14 +697,15 @@ with(
   ),
   {
     lines(
-      loess.smooth(
+      LogitLoess(
         x = GetToD(
           sast_time,
           tz = 'UTC'
         ),
         y = abs(Mod360.180(deg(
           feeder_angle
-        )))
+        ))),
+        absangle = TRUE
       ),
 
       col = 'darkblue',
@@ -849,7 +852,7 @@ with(
   ),
   {
     lines(
-      loess.smooth(
+      LogitLoess(
         x = GetToD(as.POSIXct(
     x = paste(day, time),
     tz = "Africa/Johannesburg",
@@ -900,7 +903,7 @@ with(
   ),
   {
     lines(
-      loess.smooth(
+      LogitLoess(
         x = abs(Mod360.180(
           mu
         ) ),
@@ -914,6 +917,94 @@ with(
 )
 
 ```
+
+### By sun elevation
+
+
+```{r consistency-elevation}
+par(mfrow = c(1,2),
+    mar = c(4,4,4,0))
+plot(
+  mean_vector ~ sun_el,
+  data = subset(
+    mean_vectors,
+    condition %in% "vertical"
+  ),
+  xlim = 90*c(0,1),#possible range
+  ylim = c(0, 1)+ c(1,0)*0.01,
+  xlab = "Sun elevation",
+  ylab = "Mean vector length",
+  main = "Vertical Dance Consistency",
+  col = adjustcolor(
+    cond_cols$vertical,
+    alpha.f = 0.5
+  ),
+  bg = gray(level = 0, alpha = 0.1),
+  pch = 21
+)
+abline(h = c(0, 1))
+#add smooth curve
+with(
+  subset(
+    mean_vectors,
+    condition %in% c("vertical")
+  ),
+  {
+    lines(
+      LogitLoess(
+        x = sun_el,
+        y = mean_vector
+      ),
+
+      col = adjustcolor(col = 'darkblue', alpha.f = 0.5),
+      lwd = 5
+    )
+  }
+)
+
+#horizontal
+plot(
+  mean_vector ~ sun_el,
+  data = subset(
+    mean_vectors,
+    condition %in% "horizontal"
+  ),
+  xlim = 90*c(0,1),#possible range
+  ylim = c(0, 1)+ c(1,0)*0.01,
+  xlab = "Sun elevation",
+  ylab = "",#"Mean vector length",
+  main = "Horizontal Dance Consistency",
+  col = adjustcolor(
+    cond_cols$horizontal,
+    alpha.f = 0.5
+  ),
+  bg = gray(level = 0, alpha = 0.1),
+  pch = 21
+)
+abline(h = c(0, 1))
+#add smooth curve
+with(
+  subset(
+    mean_vectors,
+    condition %in% c("horizontal")
+  ),
+  {
+    lines(
+      LogitLoess(
+        x = sun_el,
+        y = mean_vector
+      ),
+
+      col = adjustcolor(col = 'darkblue', alpha.f = 0.5),
+      lwd = 5
+    )
+  }
+)
+
+```
+
+
+
 
 ## Direction
 
