@@ -1330,16 +1330,19 @@ mtext(text = paste(tod, "mean dance angles"),
 
 Absolute offset by sun elevation.
 ```{r absolute-error-time}
-par(mfrow = c(1,2),
-    mar = c(4,4,4,0))
+par(
+  mfrow = c(1, 2),
+  mar = c(4, 4, 4, 0)
+)
 plot(
-  abs(Mod360.180(mu)) ~GetToD(time),
+  abs(Mod360.180(mu)) ~ GetToD(time),
   data = subset(
     mean_vectors,
     condition %in% "vertical"
   ),
-  xlim = range(exper_times) + 60*60*c(-1,1),#experiment range +-1h
-  ylim = c(0, 1)*180,
+  xlim = range(exper_times) +
+    60 * 60 * c(-1, 1), #experiment range +-1h
+  ylim = c(0, 1) * 180,
   xlab = "Time of Day",
   ylab = "Absolute mean angle offset",
   main = "Vertical Dance Accuracy",
@@ -1362,10 +1365,15 @@ with(
     lines(
       LogitLoess(
         x = GetToD(time),
-        y = abs(Mod360.180(mu)),absangle = TRUE, span = 1.0
+        y = abs(Mod360.180(mu)),
+        absangle = TRUE,
+        span = 1.0
       ),
 
-      col = adjustcolor(col = 'darkblue', alpha.f = 0.5),
+      col = adjustcolor(
+        col = 'darkblue',
+        alpha.f = 0.5
+      ),
       lwd = 5
     )
   }
@@ -1378,10 +1386,11 @@ plot(
     mean_vectors,
     condition %in% "horizontal"
   ),
-  xlim = range(exper_times) + 60*60*c(-1,1),#experiment range +-1h
-  ylim = c(0, 1)*180,
+  xlim = range(exper_times) +
+    60 * 60 * c(-1, 1), #experiment range +-1h
+  ylim = c(0, 1) * 180,
   xlab = "Time of Day",
-  ylab = "",#"Mean vector length",
+  ylab = "", #"Mean vector length",
   main = "Horizontal Dance Accuracy",
   col = adjustcolor(
     cond_cols$horizontal,
@@ -1402,10 +1411,15 @@ with(
     lines(
       LogitLoess(
         x = GetToD(time),
-        y = abs(Mod360.180(mu)),absangle = TRUE, span = 1.0
+        y = abs(Mod360.180(mu)),
+        absangle = TRUE,
+        span = 1.0
       ),
 
-      col = adjustcolor(col = 'darkblue', alpha.f = 0.5),
+      col = adjustcolor(
+        col = 'darkblue',
+        alpha.f = 0.5
+      ),
       lwd = 5
     )
   }
@@ -1417,8 +1431,9 @@ plot(
     mean_vectors,
     condition %in% "antisolar"
   ),
-  xlim = range(exper_times) + 60*60*c(-1,1),#experiment range +-1h
-  ylim = c(0, 1)*180,
+  xlim = range(exper_times) +
+    60 * 60 * c(-1, 1), #experiment range +-1h
+  ylim = c(0, 1) * 180,
   xlab = "Time of Day",
   ylab = "Absolute mean angle offset",
   main = "Anti-solar Sky Dance Accuracy",
@@ -1441,10 +1456,15 @@ with(
     lines(
       LogitLoess(
         x = GetToD(time),
-        y = abs(Mod360.180(mu)),absangle = TRUE, span = 1.0
+        y = abs(Mod360.180(mu)),
+        absangle = TRUE,
+        span = 1.0
       ),
 
-      col = adjustcolor(col = 'darkblue', alpha.f = 0.5),
+      col = adjustcolor(
+        col = 'darkblue',
+        alpha.f = 0.5
+      ),
       lwd = 5
     )
   }
@@ -1457,13 +1477,13 @@ plot(
     mean_vectors,
     condition %in% "solar"
   ),
-  xlim = range(exper_times) + 60*60*c(-1,1),#experiment range +-1h
-  ylim = c(0, 1)*180,
+  xlim = range(exper_times) +
+    60 * 60 * c(-1, 1), #experiment range +-1h
+  ylim = c(0, 1) * 180,
   xlab = "Time of Day",
-  ylab = "",#"Mean vector length",
+  ylab = "", #"Mean vector length",
   main = "Solar Sky Dance Accuracy",
   col = adjustcolor(
-    cond_cols$solar,
     alpha.f = 0.5
   ),
   bg = gray(level = 0, alpha = 0.1),
@@ -1481,10 +1501,15 @@ with(
     lines(
       LogitLoess(
         x = GetToD(time),
-        y = abs(Mod360.180(mu)),absangle = TRUE, span = 1.0
+        y = abs(Mod360.180(mu)),
+        absangle = TRUE,
+        span = 1.0
       ),
 
-      col = adjustcolor(col = 'darkblue', alpha.f = 0.5),
+      col = adjustcolor(
+        col = 'darkblue',
+        alpha.f = 0.5
+      ),
       lwd = 5
     )
   }
