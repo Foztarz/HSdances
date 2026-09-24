@@ -266,7 +266,69 @@ Plt_subs(
 ```
 
 
+# Plot the raw dance data
 
+## Plot an example dance
+
+For example we can look at the longest dance in the dataset,  by Blue 73, 
+recorded on 2025.01.19 at 16:51.
+
+```{r, example-dance}
+longest_id_d = u_id_d[which.max(sapply(
+  u_id_d,
+  function(i) {
+    with(
+      subset(hd, ID_d %in% i),
+      max(waggle_run)
+    )
+  }
+))]
+
+par(pty = 's')
+par(mfrow = c(1,1), mar = c(0,0,0,0))
+PltDance(ids = '73b_00027_16:51:00_20250119',
+         dtf = hd,
+         rlim = 100,
+         cx = 0.7)
+segments(x0 = 0, x1 = 0,
+        y0 = 0, y1 = 100,
+        col = "yellow3")
+with(subset(hd, ID_d %in% '73b_00027_16:51:00_20250119' & waggle_run %in% c(10, 20, 40, 60, 80)),
+     {
+text(x = waggle_run*sin(rad(dance_sun_angle)),
+     y = waggle_run*cos(rad(dance_sun_angle)),
+     labels = paste(' run', waggle_run),
+     col = sapply(X = paste(condition), 
+                  FUN = switch,
+                  vertical = 'darkred',
+    horizontal = 'darkgreen',
+    tilted = 'seagreen',
+    solar = 'blue4',
+    antisolar = 'cyan4',
+    zenith = "skyblue3")
+            ,
+     cex = 0.7,
+     adj = c(0,0))
+     }
+)
+legend(x = 'topright',
+       legend = c('Waggle run',
+                  'Mean dance direction',
+                  'Geographic North',
+                  'Sun azimuth (0°)',
+                  'Feeder direction'),
+       col = c('darkred',
+               'darkred',
+               'black',
+               'yellow3',
+               'navajowhite4'
+               ),
+       pch = c(21,21,21,21,NA),
+       lty = c(NA, NA, NA, NA, 1),
+       lwd = c(2,2,2,2,3),
+       cex = 0.5
+       )
+```
 
 # Solar Ephemeris
 
@@ -303,8 +365,7 @@ saz_seq = mapply(
 par(mfrow = c(1,1))
 #plot all vertical dances
 
-plot(x = GetToD(time_code_sast,
-               tz = 'UTC'),
+plot(x = GetToD(format(time_code_sast, "%H:%M:%S")),
     y = Mod360.180(saz_seq),
     xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
     ylim = c(-1,1)*180,
@@ -340,8 +401,7 @@ Blue 22 and blue 66 both danced very frequently, so we can start by checking whe
 
 par(mfrow = c(1,1))
 #plot all vertical dances
-plot(x = GetToD(time_code_sast,
-               tz = 'UTC'),
+plot(x = GetToD(format(time_code_sast, "%H:%M:%S")),
     y = Mod360.180(saz_seq),
     xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
     ylim = c(-1,1)*180,
@@ -355,8 +415,7 @@ plot(x = GetToD(time_code_sast,
 
 with(subset(hd, condition %in% c("vertical") ),
      {
-     points(x = GetToD(sast_time,
-                     tz = 'UTC'),
+     points(x = GetToD(time),
           y = Mod360.180(sun_az),
           pch = 3,#cross
           col = 'gray25'
@@ -378,8 +437,7 @@ with(subset(hd, condition %in% c("vertical") &
               ID %in% c('22b', '66b') 
             ),
      {
-     points(x = GetToD(sast_time,
-                     tz = 'UTC'),
+     points(x = GetToD(time),
           y = Mod360.180(sun_az),
           pch = 21,
           col = 'black',
@@ -417,8 +475,7 @@ the most dances during the rapid azimuth change period in the middle of the day.
 
 par(mfrow = c(1,1))
 #plot all vertical dances
-plot(x = GetToD(time_code_sast,
-               tz = 'UTC'),
+plot(x = GetToD(format(time_code_sast, "%H:%M:%S")),
     y = Mod360.180(saz_seq),
     xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
     ylim = c(-1,1)*180,
@@ -433,10 +490,8 @@ with(subset(hd, condition %in% c("vertical") &
               ID %in% c('22b')
             ),
      {
-     points(x = sort(GetToD(sast_time,
-                     tz = 'UTC')),
-          y = Mod360.180(sun_az)[order(GetToD(sast_time,
-                     tz = 'UTC'))],
+     points(x = sort(GetToD(time)),
+          y = Mod360.180(sun_az)[order(GetToD(time))],
           pch = 3,#cross
           lwd = 3,
           col = 'gray25'
@@ -458,8 +513,7 @@ with(subset(hd, condition %in% c("vertical") &
               ID %in% c('22b')
             ),
      {
-     points(x = GetToD(sast_time,
-                     tz = 'UTC'),
+     points(x = GetToD(time),
           y = Mod360.180(dance_sun_angle + (sun_az - feeder_az)),
           pch = 21,
           cex = 1.2,
@@ -489,8 +543,7 @@ How similar is the population?
 
 par(mfrow = c(1,1))
 #plot all vertical dances
-plot(x = GetToD(time_code_sast,
-               tz = 'UTC'),
+plot(x = GetToD(format(time_code_sast, "%H:%M:%S")),
     y = Mod360.180(saz_seq),
     xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
     ylim = c(-1,1)*180,
@@ -503,10 +556,8 @@ plot(x = GetToD(time_code_sast,
 )
 with(hd,
      {
-     points(x = sort(GetToD(sast_time,
-                     tz = 'UTC')),
-          y = Mod360.180(sun_az)[order(GetToD(sast_time,
-                     tz = 'UTC'))],
+     points(x = sort(GetToD(time)),
+          y = Mod360.180(sun_az)[order(GetToD(time))],
           pch = 3,#cross
           lwd = 3,
           col = 'gray25'
@@ -527,8 +578,7 @@ abline(v = exper_times,
 with(subset(hd, condition %in% c("vertical") &
             !(ID %in% c('22b')) ),
      {
-     points(x = GetToD(sast_time,
-                     tz = 'UTC'),
+     points(x = GetToD(time),
           y = Mod360.180(dance_sun_angle + (sun_az - feeder_az)),
           pch = 21,
           cex = 1.2,
@@ -545,8 +595,7 @@ with(subset(hd, condition %in% c("vertical") &
               ID %in% c('22b')
             ),
      {
-     points(x = GetToD(sast_time,
-                     tz = 'UTC'),
+     points(x = GetToD(time),
           y = Mod360.180(dance_sun_angle + (sun_az - feeder_az)),
           pch = 21,
           cex = 0.5,
@@ -583,6 +632,8 @@ with a constant rate of change in solar azimuth between 07:00 and 11:00,
 another (faster) rate of change between 11:00 and 13:00, 
 and likely the same morning rate of change repeated again between 13:00 and 19:00.
 
+## Ephemeris error
+
 What does the error distribution look like? 
 Is it symmetrical, or is there a systematic offset?
 
@@ -601,11 +652,11 @@ with(
   ),
   {
     plot(
-      x = GetToD(sast_time, tz = 'UTC'),
+      x = GetToD(time),
       y = Mod360.180(deg(feeder_angle)),
       xlim = c(20400, 78060), #"06:40:00 CET" "22:41:00 CET"
       ylim = c(-1, 1) * 180,
-      xlab = 'UTC',
+      xlab = 'Time of Day',
       ylab = 'Waggle run - sun azimuth',
       main = '', #'Vertical Dances',
       pch = 21,
@@ -637,8 +688,7 @@ with(
     lines(
       loess.smooth(
         x = GetToD(
-          sast_time,
-          tz = 'UTC'
+          time
         ),
         y = Mod360.180(deg(
           feeder_angle
@@ -661,13 +711,13 @@ with(
   ),
   {
     plot(
-      x = GetToD(sast_time, tz = 'UTC'),
+      x = GetToD(time),
       y = abs(Mod360.180(deg(
         feeder_angle
       ))),
       xlim = c(20400, 78060), #"06:40:00 CET" "22:41:00 CET"
       ylim = c(0, 1) * 180,
-      xlab = 'UTC',
+      xlab = 'Time of Day',
       ylab = 'absolute feeder angle error',
       main = '', #'Vertical Dances',
       pch = 21,
@@ -699,8 +749,7 @@ with(
     lines(
       LogitLoess(
         x = GetToD(
-          sast_time,
-          tz = 'UTC'
+          time
         ),
         y = abs(Mod360.180(deg(
           feeder_angle
@@ -715,6 +764,220 @@ with(
 )
 
 ```
+
+## Horizontal dances
+
+Is this similar for the horizontal
+
+```{r all-ephemeris-horizontal}
+
+par(mfrow = c(1,1))
+#plot all vertical dances
+plot(x = GetToD(format(time_code_sast, "%H:%M:%S")),
+    y = Mod360.180(saz_seq),
+    xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
+    ylim = c(-1,1)*180,
+    xlab = 'Time of Day',
+    ylab = 'Sun Azimuth',
+    main = 'All Bees, Horizontal Dances',
+    type = 'l',
+    col = 'yellow3',
+    lwd = 7
+)
+with(hd,
+     {
+     points(x = sort(GetToD(time)),
+          y = Mod360.180(sun_az)[order(GetToD(time))],
+          pch = 3,#cross
+          lwd = 3,
+          col = 'gray25'
+     )
+     abline(h = -4:4*c(45),
+            lty = 2) #limits
+     abline(v =  12*60*60, #as.numeric(as.POSIXct("1970-01-01 12:00:00 UTC"))
+            lty = 3)
+     }
+)
+#add lines indicating the approximate expected start and end of each experiment
+abline(v = exper_times,
+       col = time_cols,
+       lty = c(1,2),
+       lwd = 2
+       )
+#plot dances other bees
+with(subset(hd, condition %in% c("horizontal") &
+            !(ID %in% c('22b')) ),
+     {
+     points(x = GetToD(time),
+          y = Mod360.180(dance_sun_angle + (sun_az - feeder_az)),
+          pch = 21,
+          cex = 1.2,
+          col = adjustcolor('black',
+                            alpha.f = 0.1),
+           bg = adjustcolor('cadetblue',
+                        alpha.f = 0.1)
+     )
+     }
+)
+
+#plot dances by bees of interest
+with(subset(hd, condition %in% c("horizontal") &
+              ID %in% c('22b')
+            ),
+     {
+     points(x = GetToD(time),
+          y = Mod360.180(dance_sun_angle + (sun_az - feeder_az)),
+          pch = 21,
+          cex = 0.5,
+          col = adjustcolor('black',
+                            alpha.f = 0.5),
+           bg = adjustcolor('cyan',
+                        alpha.f = 1.0)
+     )
+     }
+)
+
+legend(
+  x = 'bottomright',
+  legend = c(
+    "Sun azimuth",
+    "B22",
+    "Other bees"
+  ),
+  col = c("gray25", "cyan", "cadetblue"),
+  pch = c(3, 19, 19),
+  cex = 0.7
+)
+```
+
+```{r calculate-ephemeris-error-horizontal, fig.width = 5, fig.height = 7, dpi = 150}
+
+par(
+  mfrow = c(2, 1),
+  mar = c(4, 4, 2, 0)
+)
+#plot dance offset from true feeder angle
+with(
+  subset(
+    hd,
+    condition %in% c("horizontal")
+  ),
+  {
+    plot(
+      x = GetToD(time),
+      y = Mod360.180(deg(feeder_angle)),
+      xlim = c(20400, 78060), #"06:40:00 CET" "22:41:00 CET"
+      ylim = c(-1, 1) * 180,
+      xlab = 'Time of Day',
+      ylab = 'Waggle run - feeder azimuth',
+      main = 'Horizontal Dances',
+      pch = 21,
+      cex = 1.2,
+      col = adjustcolor(
+        'black',
+        alpha.f = 0.1
+      ),
+      bg = adjustcolor(
+        'cadetblue',
+        alpha.f = 0.1
+      )
+    )
+  }
+)
+abline(h = 0, lwd = 3) #expected
+abline(h = -4:4 * c(45), lty = 2) #limits
+abline(v = 7:19 * 60*60, lty = 3) #hours
+abline(
+  v = 12 * 60 * 60, #as.numeric(as.POSIXct("1970-01-01 12:00:00 UTC"))
+  lty = 3
+)
+with(
+  subset(
+    hd,
+    condition %in% c("horizontal")
+  ),
+  {
+    lines(
+      loess.smooth(
+        x = GetToD(
+          time
+        ),
+        y = Mod360.180(deg(
+          feeder_angle
+        ))
+      ),
+
+      col = 'darkblue',
+      lwd = 5
+    )
+  }
+)
+
+#absolute error
+
+#plot dances other bees
+with(
+  subset(
+    hd,
+    condition %in% c("horizontal")
+  ),
+  {
+    plot(
+      x = GetToD(time),
+      y = abs(Mod360.180(deg(
+        feeder_angle
+      ))),
+      xlim = c(20400, 78060), #"06:40:00 CET" "22:41:00 CET"
+      ylim = c(0, 1) * 180,
+      xlab = 'Time of Day',
+      ylab = 'absolute feeder angle error',
+      main = 'Horizontal Dances',
+      pch = 21,
+      cex = 1.2,
+      col = adjustcolor(
+        'black',
+        alpha.f = 0.1
+      ),
+      bg = adjustcolor(
+        'cadetblue',
+        alpha.f = 0.1
+      )
+    )
+  }
+)
+abline(h = 0, lwd = 3) #expected
+abline(h = 2:12 * c(15), lty = 2) #limits
+abline(v = 7:19 * 60*60, lty = 3) #hours
+abline(
+  v = 12 * 60 * 60, #as.numeric(as.POSIXct("1970-01-01 12:00:00 UTC"))
+  lty = 3
+)
+with(
+  subset(
+    hd,
+    condition %in% c("horizontal")
+  ),
+  {
+    lines(
+      LogitLoess(
+        x = GetToD(
+          time
+        ),
+        y = abs(Mod360.180(deg(
+          feeder_angle
+        ))),
+        absangle = TRUE
+      ),
+
+      col = 'darkblue',
+      lwd = 5
+    )
+  }
+)
+
+```
+
+
 
 # Calculate dance means
 
@@ -821,12 +1084,7 @@ print(mv_agg,
 
 ```{r consistency-time-of-day}
 plot(
-  mean_vector ~ GetToD(as.POSIXct(
-    x = paste(day, time),
-    tz = "Africa/Johannesburg",
-    format = "%Y%m%d %H:%M:%OS"
-  ),
-  tz = "UTC"),
+  mean_vector ~ GetToD(time),
   data = subset(
     mean_vectors,
     condition %in% "vertical"
@@ -853,12 +1111,7 @@ with(
   {
     lines(
       LogitLoess(
-        x = GetToD(as.POSIXct(
-    x = paste(day, time),
-    tz = "Africa/Johannesburg",
-    format = "%Y%m%d %H:%M:%OS"
-  ),
-  tz = "UTC"),
+        x = GetToD(time),
         y = mean_vector
       ),
 
@@ -870,6 +1123,8 @@ with(
 
 ```
 
+
+### By ephemeris error
 Could this be a response to ephemeris error? 
 Perhaps they are trying to update their ephemeris with uncertainty?
 
@@ -1008,6 +1263,7 @@ with(
 
 ## Direction
 
+### By condition
 
 ```{r mean-angle-summary}
 par(mfrow = c(2,3), 
@@ -1068,4 +1324,394 @@ mtext(text = paste(tod, "mean dance angles"),
   
 }
 
+```
+
+### By time of day
+
+Absolute offset by sun elevation.
+```{r absolute-error-time}
+par(mfrow = c(1,2),
+    mar = c(4,4,4,0))
+plot(
+  abs(Mod360.180(mu)) ~GetToD(time),
+  data = subset(
+    mean_vectors,
+    condition %in% "vertical"
+  ),
+  xlim = range(exper_times) + 60*60*c(-1,1),#experiment range +-1h
+  ylim = c(0, 1)*180,
+  xlab = "Time of Day",
+  ylab = "Absolute mean angle offset",
+  main = "Vertical Dance Accuracy",
+  col = adjustcolor(
+    cond_cols$vertical,
+    alpha.f = 0.5
+  ),
+  bg = gray(level = 0, alpha = 0.1),
+  pch = 21
+)
+abline(h = 0:1 * c(180), lty = 1) #limits
+abline(h = 1:3 * c(45), lty = 2) #gridlines
+#add smooth curve
+with(
+  subset(
+    mean_vectors,
+    condition %in% c("vertical")
+  ),
+  {
+    lines(
+      LogitLoess(
+        x = GetToD(time),
+        y = abs(Mod360.180(mu)),absangle = TRUE, span = 1.0
+      ),
+
+      col = adjustcolor(col = 'darkblue', alpha.f = 0.5),
+      lwd = 5
+    )
+  }
+)
+
+#horizontal
+plot(
+  abs(Mod360.180(mu)) ~ GetToD(time),
+  data = subset(
+    mean_vectors,
+    condition %in% "horizontal"
+  ),
+  xlim = range(exper_times) + 60*60*c(-1,1),#experiment range +-1h
+  ylim = c(0, 1)*180,
+  xlab = "Time of Day",
+  ylab = "",#"Mean vector length",
+  main = "Horizontal Dance Accuracy",
+  col = adjustcolor(
+    cond_cols$horizontal,
+    alpha.f = 0.5
+  ),
+  bg = gray(level = 0, alpha = 0.1),
+  pch = 21
+)
+abline(h = 0:1 * c(180), lty = 1) #limits
+abline(h = 1:3 * c(45), lty = 2) #gridlines
+#add smooth curve
+with(
+  subset(
+    mean_vectors,
+    condition %in% c("horizontal")
+  ),
+  {
+    lines(
+      LogitLoess(
+        x = GetToD(time),
+        y = abs(Mod360.180(mu)),absangle = TRUE, span = 1.0
+      ),
+
+      col = adjustcolor(col = 'darkblue', alpha.f = 0.5),
+      lwd = 5
+    )
+  }
+)
+#antisolar
+plot(
+  abs(Mod360.180(mu)) ~ GetToD(time),
+  data = subset(
+    mean_vectors,
+    condition %in% "antisolar"
+  ),
+  xlim = range(exper_times) + 60*60*c(-1,1),#experiment range +-1h
+  ylim = c(0, 1)*180,
+  xlab = "Time of Day",
+  ylab = "Absolute mean angle offset",
+  main = "Anti-solar Sky Dance Accuracy",
+  col = adjustcolor(
+    cond_cols$antisolar,
+    alpha.f = 0.5
+  ),
+  bg = gray(level = 0, alpha = 0.1),
+  pch = 21
+)
+abline(h = 0:1 * c(180), lty = 1) #limits
+abline(h = 1:3 * c(45), lty = 2) #gridlines
+#add smooth curve
+with(
+  subset(
+    mean_vectors,
+    condition %in% c("antisolar")
+  ),
+  {
+    lines(
+      LogitLoess(
+        x = GetToD(time),
+        y = abs(Mod360.180(mu)),absangle = TRUE, span = 1.0
+      ),
+
+      col = adjustcolor(col = 'darkblue', alpha.f = 0.5),
+      lwd = 5
+    )
+  }
+)
+
+#solar
+plot(
+  abs(Mod360.180(mu)) ~ GetToD(time),
+  data = subset(
+    mean_vectors,
+    condition %in% "solar"
+  ),
+  xlim = range(exper_times) + 60*60*c(-1,1),#experiment range +-1h
+  ylim = c(0, 1)*180,
+  xlab = "Time of Day",
+  ylab = "",#"Mean vector length",
+  main = "Solar Sky Dance Accuracy",
+  col = adjustcolor(
+    cond_cols$solar,
+    alpha.f = 0.5
+  ),
+  bg = gray(level = 0, alpha = 0.1),
+  pch = 21
+)
+abline(h = 0:1 * c(180), lty = 1) #limits
+abline(h = 1:3 * c(45), lty = 2) #gridlines
+#add smooth curve
+with(
+  subset(
+    mean_vectors,
+    condition %in% c("solar")
+  ),
+  {
+    lines(
+      LogitLoess(
+        x = GetToD(time),
+        y = abs(Mod360.180(mu)),absangle = TRUE, span = 1.0
+      ),
+
+      col = adjustcolor(col = 'darkblue', alpha.f = 0.5),
+      lwd = 5
+    )
+  }
+)
+```
+
+### By sun elevation
+
+```{r mean-angle-elevation-session}
+par(
+  mfrow = c(1, 3),
+  mar = c(0, 0, 0, 0),
+  oma = c(2, 0, 0, 0)
+)
+
+for (cond in levels(hd$condition)) {
+  for (tod in c(
+    'sun_el < 15',
+    'sun_el < 45 & sun_el > 30',
+    'sun_el > 75'
+  )) {
+    # tod_filter = eval(str2lang(tod), envir = mean_vectors)
+    cond_tod_mu = subset(
+      mean_vectors,
+      subset = condition %in%
+        cond &
+        eval(str2lang(tod))
+    )$mu
+    if (length(cond_tod_mu) > 0) {
+      PCfun(
+        angles = cond_tod_mu,
+        col = cond_cols[[cond]],
+        shrink = 2.8,
+        title = tod
+      )
+    } else {
+      plot(
+        NULL,
+        axes = FALSE,
+        xlim = c(0, 0),
+        ylim = c(0, 0),
+        xlab = "",
+        ylab = "",
+        main = ""
+      )
+      legend(
+        x = "center",
+        legend = paste(
+          "no",
+          tod,
+          "data found"
+        )
+      )
+    }
+  }
+    mtext(
+      text = paste(
+        cond,
+        "mean dance angles"
+      ),
+      side = 1,
+      line = 0.2,
+      outer = TRUE
+    )
+}
+
+```
+
+Absolute offset by sun elevation.
+```{r absolute-error-sun-elevation}
+par(mfrow = c(1,2),
+    mar = c(4,4,4,0))
+plot(
+  abs(Mod360.180(mu)) ~ sun_el,
+  data = subset(
+    mean_vectors,
+    condition %in% "vertical"
+  ),
+  xlim = 90*c(0,1),#possible range
+  ylim = c(0, 1)*180,
+  xlab = "Sun elevation",
+  ylab = "Absolute mean angle offset",
+  main = "Vertical Dance Accuracy",
+  col = adjustcolor(
+    cond_cols$vertical,
+    alpha.f = 0.5
+  ),
+  bg = gray(level = 0, alpha = 0.1),
+  pch = 21
+)
+abline(h = 0:1 * c(180), lty = 1) #limits
+abline(h = 1:3 * c(45), lty = 2) #gridlines
+#add smooth curve
+with(
+  subset(
+    mean_vectors,
+    condition %in% c("vertical")
+  ),
+  {
+    lines(
+      LogitLoess(
+        x = sun_el,
+        y = abs(Mod360.180(mu)),absangle = TRUE
+      ),
+
+      col = adjustcolor(col = 'darkblue', alpha.f = 0.5),
+      lwd = 5
+    )
+  }
+)
+
+#horizontal
+plot(
+  abs(Mod360.180(mu)) ~ sun_el,
+  data = subset(
+    mean_vectors,
+    condition %in% "horizontal"
+  ),
+  xlim = 90*c(0,1),#possible range
+  ylim = c(0, 1)*180,
+  xlab = "Sun elevation",
+  ylab = "",#"Mean vector length",
+  main = "Horizontal Dance Accuracy",
+  col = adjustcolor(
+    cond_cols$horizontal,
+    alpha.f = 0.5
+  ),
+  bg = gray(level = 0, alpha = 0.1),
+  pch = 21
+)
+abline(h = 0:1 * c(180), lty = 1) #limits
+abline(h = 1:3 * c(45), lty = 2) #gridlines
+#add smooth curve
+with(
+  subset(
+    mean_vectors,
+    condition %in% c("horizontal")
+  ),
+  {
+    lines(
+      LogitLoess(
+        x = sun_el,
+        y = abs(Mod360.180(mu)),absangle = TRUE
+      ),
+
+      col = adjustcolor(col = 'darkblue', alpha.f = 0.5),
+      lwd = 5
+    )
+  }
+)
+#antisolar
+plot(
+  abs(Mod360.180(mu)) ~ sun_el,
+  data = subset(
+    mean_vectors,
+    condition %in% "antisolar"
+  ),
+  xlim = 90*c(0,1),#possible range
+  ylim = c(0, 1)*180,
+  xlab = "Sun elevation",
+  ylab = "Absolute mean angle offset",
+  main = "Anti-solar Sky Dance Accuracy",
+  col = adjustcolor(
+    cond_cols$antisolar,
+    alpha.f = 0.5
+  ),
+  bg = gray(level = 0, alpha = 0.1),
+  pch = 21
+)
+abline(h = 0:1 * c(180), lty = 1) #limits
+abline(h = 1:3 * c(45), lty = 2) #gridlines
+#add smooth curve
+with(
+  subset(
+    mean_vectors,
+    condition %in% c("antisolar")
+  ),
+  {
+    lines(
+      LogitLoess(
+        x = sun_el,
+        y = abs(Mod360.180(mu)),absangle = TRUE
+      ),
+
+      col = adjustcolor(col = 'darkblue', alpha.f = 0.5),
+      lwd = 5
+    )
+  }
+)
+
+#solar
+plot(
+  abs(Mod360.180(mu)) ~ sun_el,
+  data = subset(
+    mean_vectors,
+    condition %in% "solar"
+  ),
+  xlim = 90*c(0,1),#possible range
+  ylim = c(0, 1)*180,
+  xlab = "Sun elevation",
+  ylab = "",#"Mean vector length",
+  main = "Solar Sky Dance Accuracy",
+  col = adjustcolor(
+    cond_cols$solar,
+    alpha.f = 0.5
+  ),
+  bg = gray(level = 0, alpha = 0.1),
+  pch = 21
+)
+abline(h = 0:1 * c(180), lty = 1) #limits
+abline(h = 1:3 * c(45), lty = 2) #gridlines
+#add smooth curve
+with(
+  subset(
+    mean_vectors,
+    condition %in% c("solar")
+  ),
+  {
+    lines(
+      LogitLoess(
+        x = sun_el,
+        y = abs(Mod360.180(mu)),absangle = TRUE
+      ),
+
+      col = adjustcolor(col = 'darkblue', alpha.f = 0.5),
+      lwd = 5
+    )
+  }
+)
 ```

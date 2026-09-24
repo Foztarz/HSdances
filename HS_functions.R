@@ -720,19 +720,62 @@ GetMel = function(tm, lon, lat) {
   }
 }
 
-#time of day from date
+#time of day from date, or from a clock time "%H:%M:%S"
 GetToD = function(
   tm,
-  tz = attr(tm, "tzone")
+  tz = c(
+    "UTC", #default to UTC for easy hour assignment
+    attr(tm, "tzone")
+  )
 ) {
-  t_form = format(tm, "%H:%M:%S")
-  t_string = paste("1970-01-01", t_form)
+  if (
+    is.character(tm) | is.factor(tm)
+  ) {
+    #clock times have no date or timezone, so read them as times in tz
+    tz = tz[1]
+    t_form = sub(
+      pattern = "^(\\d{1,2}:\\d{2})$", #"%H:%M" without seconds
+      replacement = "\\1:00",
+      x = as.character(tm)
+    )
+  } else {
+    tz = match.arg(tz)
+    t_form = format(
+      as.POSIXct(tm), #POSIXlt ignores tz in format
+      "%H:%M:%S",
+      tz = tz
+    )
+  }
+  t_string = ifelse(
+    test = is.na(t_form),
+    yes = NA,
+    no = paste("1970-01-01", t_form)
+  )
   tod = as.POSIXct(
     x = t_string,
     tz = tz,
     format = "%Y-%m-%d %H:%M:%OS"
   )
+  class(tod) = c("ToD", class(tod)) #mark as time of day, for axis labels
   return(tod)
+}
+
+#plot axes for time of day show time only
+Axis.ToD = function(
+  x = NULL,
+  at = NULL,
+  ...,
+  side,
+  labels = TRUE
+) {
+  axis.POSIXct(
+    side = side,
+    x = x,
+    at = at,
+    format = "%H:%M:%S",
+    labels = labels,
+    ...
+  )
 }
 
 
@@ -1384,6 +1427,337 @@ Plt_subs = function(
       side = 1,
       line = -0.25,
       outer = TRUE
+    )
+  }
+}
+
+#Plot one experimental condition for one or more individual dances.
+#angle_for selects dance_sun_angle with feeder_az as reference ('sun') or
+#deg(feeder_angle) with sun_az as reference ('feeder').
+PltDance = function(
+  ids,
+  dtf,
+  angle_for = "sun",
+  cx = 0.3,
+  rlim = 80,
+  cond_cols = list(
+    vertical = 'darkred',
+    horizontal = 'darkgreen',
+    tilted = 'seagreen',
+    solar = 'blue4',
+    antisolar = 'cyan4',
+    zenith = "skyblue3"
+  )
+) {
+  if (!is.data.frame(dtf)) {
+    stop("'dtf' must be a data frame.")
+  }
+
+  required_cols = c(
+    "ID_d",
+    "condition",
+    "waggle_run",
+    "sun_az",
+    "feeder_az"
+  )
+  missing_cols = setdiff(
+    required_cols,
+    names(dtf)
+  )
+  if (length(missing_cols) > 0) {
+    stop(
+      "The following columns are required in 'dtf': ",
+      paste(
+        missing_cols,
+        collapse = ", "
+      )
+    )
+  }
+  if (length(ids) == 0) {
+    stop(
+      "'ids' must contain at least one ID_d."
+    )
+  }
+
+  angle_for = match.arg(
+    angle_for,
+    choices = c("sun", "feeder")
+  )
+  condition_names = c(
+    "vertical",
+    "horizontal",
+    "tilted",
+    "antisolar",
+    "solar",
+    "zenith"
+  )
+
+  angle_col = switch(
+    angle_for,
+    sun = "dance_sun_angle",
+    feeder = "feeder_angle"
+  )
+  if (!angle_col %in% names(dtf)) {
+    stop(
+      "Column '",
+      angle_col,
+      "' is required in 'dtf' for angle_for = '",
+      angle_for,
+      "'."
+    )
+  }
+
+  xc = seq(
+    from = -pi,
+    to = pi - 1e-16,
+    length.out = 1e3
+  )
+
+  for (id_d in ids) {
+    dance = subset(
+      dtf,
+      ID_d %in% id_d
+    )
+    dance_conditions = with(
+      dance,
+      unique(as.character(condition[
+        !is.na(condition)
+      ]))
+    )
+
+    if (length(dance_conditions) != 1) {
+      stop(
+        "ID_d '",
+        id_d,
+        "' must have exactly one non-missing condition; found ",
+        length(dance_conditions),
+        "."
+      )
+    }
+    condition_name = dance_conditions[1]
+    if (
+      !condition_name %in%
+        condition_names
+    ) {
+      stop(
+        "Unknown condition '",
+        condition_name,
+        "' for ID_d '",
+        id_d,
+        "'. Expected one of: ",
+        paste(
+          condition_names,
+          collapse = ", "
+        ),
+        "."
+      )
+    }
+    if (
+      is.null(cond_cols[[
+        condition_name
+      ]])
+    ) {
+      stop(
+        "No colour was supplied in 'cond_cols' for condition '",
+        condition_name,
+        "'."
+      )
+    }
+    condition_col = cond_cols[[
+      condition_name
+    ]]
+
+    plot(
+      x = NULL,
+      xlim = rlim * c(-1, 1),
+      ylim = rlim * c(-1, 1),
+      pch = 19,
+      axes = FALSE,
+      xlab = '',
+      ylab = '',
+      main = '',
+      cex = cx
+    )
+    abline(
+      a = 0,
+      b = 1,
+      col = gray(0.9, alpha = cx),
+      lwd = cx
+    )
+    abline(
+      a = 0,
+      b = -1,
+      col = gray(0.9, alpha = cx),
+      lwd = cx
+    )
+    abline(
+      h = 0,
+      v = 0,
+      col = gray(0.75, alpha = cx),
+      lwd = cx
+    )
+    reference_radii = seq(
+      from = 20,
+      to = rlim,
+      by = 20
+    )
+    reference_radii = reference_radii[
+      reference_radii < rlim
+    ]
+    for (reference_radius in reference_radii) {
+      lines(
+        x = reference_radius * sin(xc),
+        y = reference_radius * cos(xc),
+        lty = 3,
+        lwd = cx,
+        col = gray(0, alpha = cx)
+      )
+    }
+
+    if (nrow(dance) > 0) {
+      dance = within(
+        dance,
+        {
+          plot_angle = switch(
+            angle_for,
+            sun = dance_sun_angle,
+            feeder = deg(feeder_angle)
+          )
+          plot_radians = rad(plot_angle)
+          valid_angle = is.finite(
+            plot_angle
+          ) &
+            is.finite(waggle_run)
+        }
+      )
+
+      with(
+        subset(dance, valid_angle),
+        {
+          points(
+            x = waggle_run *
+              sin(plot_radians),
+            y = waggle_run *
+              cos(plot_radians),
+            bg = adjustcolor(
+              col = condition_col,
+              alpha.f = 0.4
+            ),
+            col = condition_col,
+            pch = 21,
+            lwd = cx,
+            cex = cx * 0.5
+          )
+        }
+      )
+
+      if (any(dance$valid_angle)) {
+        mean_vector = with(
+          subset(dance, valid_angle),
+          {
+            mean_sin = mean(sin(
+              plot_radians
+            ))
+            mean_cos = mean(cos(
+              plot_radians
+            ))
+            list(
+              mu = atan2(
+                mean_sin,
+                mean_cos
+              ),
+              rho = sqrt(
+                mean_sin^2 + mean_cos^2
+              )
+            )
+          }
+        )
+        lines(
+          x = c(
+            0,
+            rlim *
+              sin(mean_vector$mu) *
+              mean_vector$rho
+          ),
+          y = c(
+            0,
+            rlim *
+              cos(mean_vector$mu) *
+              mean_vector$rho
+          ),
+          col = condition_col,
+          lwd = cx
+        )
+      }
+
+      ref_angle = with(
+        dance,
+        switch(
+          angle_for,
+          sun = feeder_az[1],
+          feeder = sun_az[1]
+        )
+      )
+      if (is.finite(ref_angle)) {
+        lines(
+          x = c(
+            0,
+            rlim * sin(rad(ref_angle))
+          ),
+          y = c(
+            0,
+            rlim * cos(rad(ref_angle))
+          ),
+          col = adjustcolor(
+            col = switch(
+              angle_for,
+              sun = "navajowhite4",
+              feeder = "yellow3"
+            ),
+            alpha.f = 0.5
+          ),
+          lwd = 3
+        )
+      }
+
+      true_north_angle = with(
+        dance,
+        switch(
+          angle_for,
+          sun = -sun_az[1],
+          feeder = -feeder_az[1]
+        )
+      )
+      if (is.finite(true_north_angle)) {
+        lines(
+          x = c(
+            0,
+            rlim *
+              sin(rad(true_north_angle))
+          ),
+          y = c(
+            0,
+            rlim *
+              cos(rad(true_north_angle))
+          ),
+          col = adjustcolor(
+            col = "black",
+            alpha.f = 0.5
+          ),
+          lwd = 3
+        )
+      }
+    }
+
+    mtext(
+      paste(
+        id_d,
+        unique(dance$time),
+        condition_name
+      ),
+      side = 1,
+      line = -1,
+      cex = cx
     )
   }
 }

@@ -754,8 +754,7 @@ time_cols = c(
 
 
 with(hd,
-     hist(x = GetToD(sast_time,
-                     tz = 'UTC'),
+     hist(x = GetToD(time),
           breaks = 12*60/15 +1,
           xlim = c(7, 19)*60*60,
           freq = TRUE,
@@ -841,10 +840,8 @@ par(mfrow = c(2,2),
     mar = c(0,0,4.5,0))
 
 with(subset(hd,
-            GetToD(sast_time,
-                     tz = 'UTC') > morning_start &
-            GetToD(sast_time,
-                     tz = 'UTC') < morning_end),
+            GetToD(time) > morning_start &
+            GetToD(time) < morning_end),
      {
 PCfun(sun_az,
       col = time_cols['morning_start'],
@@ -863,10 +860,8 @@ arrows.circular(x = circular(-68,
                 col = 'navajowhite4')
 
 with(subset(hd,
-            GetToD(sast_time,
-                     tz = 'UTC') > midday_start &
-            GetToD(sast_time,
-                     tz = 'UTC') < midday_end),
+            GetToD(time) > midday_start &
+            GetToD(time) < midday_end),
      {
 PCfun(sun_az,
       col =  time_cols['midday_start'],
@@ -885,10 +880,8 @@ arrows.circular(x = circular(-68,
                 col = 'navajowhite4')
 
 with(subset(hd,
-            GetToD(sast_time,
-                     tz = 'UTC') > afternoon_start &
-            GetToD(sast_time,
-                     tz = 'UTC') < afternoon_end),
+            GetToD(time) > afternoon_start &
+            GetToD(time) < afternoon_end),
      {
 PCfun(sun_az,
       col = time_cols['afternoon_start'],
@@ -907,10 +900,8 @@ arrows.circular(x = circular(-68,
                 col = 'navajowhite4')
 
 with(subset(hd,
-            GetToD(sast_time,
-                     tz = 'UTC') > evening_start &
-            GetToD(sast_time,
-                     tz = 'UTC') < evening_end),
+            GetToD(time) > evening_start &
+            GetToD(time) < evening_end),
      {
 PCfun(sun_az,
       col = time_cols['evening_start'],
@@ -1008,12 +999,11 @@ cond_cols = list(
 par(mfrow = c(1,2))
 with(subset(hd, condition %in% c("vertical", "horizontal", "deg10")),
      {
-     plot(x = GetToD(sast_time,
-                     tz = 'UTC'),
+     plot(x = GetToD(time),
           y = sun_el,
           xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
           ylim = c(-1,1)*c(5,90),
-          xlab = 'UTC',
+          xlab = 'Time of Day',
           ylab = 'Sun Elevation',
           main = 'Camcorder Videos',
           pch = 21,
@@ -1043,12 +1033,11 @@ abline(v = exper_times,
 
 with(subset(hd, condition %in% c("solar", "antisolar")),
      {
-     plot(x = GetToD(sast_time,
-                     tz = 'UTC'),
+     plot(x = GetToD(time),
           y = sun_el,
           xlim = c(20400,78060),#"06:40:00 CET" "22:41:00 CET"
           ylim = c(-1,1)*c(5,90),
-          xlab = 'UTC',
+          xlab = 'Time of Day',
           ylab = 'Sun Elevation',
           main = 'USB Camera Videos',
           pch = 21,
