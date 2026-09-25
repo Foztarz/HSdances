@@ -214,7 +214,7 @@ Plt_subs(subs = daybee_lst$example_subs,
 print("First dance for low sun elevations")
 lowel_subs = FirstDanceCond(
   hd,
-  sun_el < 15
+  sun_el < 15 
 )$example_subs
 
 Plt_subs(
@@ -289,25 +289,22 @@ par(mfrow = c(1,1), mar = c(0,0,0,0))
 PltDance(ids = '73b_00027_16:51:00_20250119',
          dtf = hd,
          rlim = 100,
-         cx = 0.7)
+         cx = 1.0)
 segments(x0 = 0, x1 = 0,
         y0 = 0, y1 = 100,
         col = "yellow3")
-with(subset(hd, ID_d %in% '73b_00027_16:51:00_20250119' & waggle_run %in% c(10, 20, 40, 60, 80)),
+with(subset(hd, ID_d %in% '73b_00027_16:51:00_20250119' & waggle_run %in% c(20, 40, 60, 80)),
      {
+points(x = waggle_run*sin(rad(dance_sun_angle)),
+     y = waggle_run*cos(rad(dance_sun_angle)),
+     labels = paste(' run', waggle_run),
+     col = hcl.colors(4, palette = "dark2"),
+     pch = 19)
 text(x = waggle_run*sin(rad(dance_sun_angle)),
      y = waggle_run*cos(rad(dance_sun_angle)),
      labels = paste(' run', waggle_run),
-     col = sapply(X = paste(condition), 
-                  FUN = switch,
-                  vertical = 'darkred',
-    horizontal = 'darkgreen',
-    tilted = 'seagreen',
-    solar = 'blue4',
-    antisolar = 'cyan4',
-    zenith = "skyblue3")
-            ,
-     cex = 0.7,
+     col = hcl.colors(4, palette = "dark2"),
+     cex = 0.8,
      adj = c(0,0))
      }
 )
@@ -323,12 +320,124 @@ legend(x = 'topright',
                'yellow3',
                'navajowhite4'
                ),
-       pch = c(21,21,21,21,NA),
-       lty = c(NA, NA, NA, NA, 1),
-       lwd = c(2,2,2,2,3),
+       pch = c(21,NA,NA,NA,NA),
+       lty = c(NA, 1, 1, 1, 1),
+       lwd = c(2,3,3,3,3),
        cex = 0.5
        )
 ```
+
+## Plot all raw dances
+
+<details>
+
+<summary>Click to expand dance plots</summary>
+
+
+```{r Raw dances, warning=FALSE}
+#reorganise u_id_d by date of dance
+dance_date = sapply(
+  X = u_id_d,
+  FUN = function(i) {
+    with(
+      subset(hd, ID_d %in% i),
+      unique(sast_time)
+    )
+  }
+)
+u_id_d = u_id_d[order(dance_date)]
+
+par(mfrow = c(2, 2),
+    mar = c(0,0,0,0))
+par(pty = 's')
+#add legend to 1st page
+plot(x = NULL,
+     xlim = c(-1,1),
+     ylim = c(-1,1),
+     pch = 19,
+     axes = FALSE,
+     xlab = '',
+     ylab = '',
+     main = ''
+)
+legend(x = 'center',
+       legend = c('Waggle run',
+                  'Mean dance direction',
+                  'Geographic North',
+                  'Sun azimuth (0°)',
+                  'Feeder direction'),
+       col = c('darkred',
+               'darkred',
+               'black',
+               'yellow3',
+               'navajowhite4'
+               ),
+       pch = c(21,NA,NA,NA,NA),
+       lty = c(NA, 1, 1, 1, 1),
+       lwd = c(2,3,3,3,3),
+       cex = 1.3
+       )
+#loop through individuals
+PltDance(ids = u_id_d,
+         dtf = hd,
+         cx = 1.0)
+#save as a plot
+invisible({
+  pdf(
+    file = "Plots/All_dances.pdf",
+    paper = 'a4',
+    onefile = TRUE
+  )
+  pdfdev = dev.cur()
+  par(
+    mfrow = c(2, 2),
+    mar = c(0, 0, 0, 0)
+  )
+  par(pty = 's')
+
+  #add legend to 1st page
+  plot(
+    x = NULL,
+    xlim = c(-1, 1),
+    ylim = c(-1, 1),
+    pch = 19,
+    axes = FALSE,
+    xlab = '',
+    ylab = '',
+    main = ''
+  )
+  legend(
+    x = 'center',
+    legend = c(
+      'Waggle run',
+      'Mean dance direction',
+      'Geographic North',
+      'Sun azimuth (0°)',
+      'Feeder direction'
+    ),
+    col = c(
+      'darkred',
+      'darkred',
+      'black',
+      'yellow3',
+      'navajowhite4'
+    ),
+    pch = c(21, NA, NA, NA, NA),
+    lty = c(NA, 1, 1, 1, 1),
+    lwd = c(2, 3, 3, 3, 3),
+    cex = 2.0
+  )
+  #loop through individuals
+  PltDance(
+    ids = u_id_d,
+    dtf = hd,
+    cx = 1.0
+  )
+  dev.off(which = pdfdev)
+})
+         
+```
+
 
 # Solar Ephemeris
 

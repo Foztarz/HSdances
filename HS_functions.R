@@ -1,6 +1,6 @@
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2026 06 03
-#     MODIFIED:	James Foster              DATE: 2026 07 21
+#     MODIFIED:	James Foster              DATE: 2026 09 24
 #
 #  DESCRIPTION: Functions for Hildebrandt F et al. (in prep).
 #
@@ -1438,7 +1438,8 @@ PltDance = function(
   ids,
   dtf,
   angle_for = "sun",
-  cx = 0.3,
+  cx = 1.0,
+  cx_lab = cx * 0.7,
   rlim = 80,
   cond_cols = list(
     vertical = 'darkred',
@@ -1449,6 +1450,7 @@ PltDance = function(
     zenith = "skyblue3"
   )
 ) {
+  #check available information
   if (!is.data.frame(dtf)) {
     stop("'dtf' must be a data frame.")
   }
@@ -1478,7 +1480,7 @@ PltDance = function(
       "'ids' must contain at least one ID_d."
     )
   }
-
+  #check arguments
   angle_for = match.arg(
     angle_for,
     choices = c("sun", "feeder")
@@ -1491,7 +1493,7 @@ PltDance = function(
     "solar",
     "zenith"
   )
-
+  #choose which column contains the angle to plot
   angle_col = switch(
     angle_for,
     sun = "dance_sun_angle",
@@ -1506,13 +1508,13 @@ PltDance = function(
       "'."
     )
   }
-
+  #set up a sequence of angles for grid lines
   xc = seq(
     from = -pi,
     to = pi - 1e-16,
     length.out = 1e3
   )
-
+  #loop through dances
   for (id_d in ids) {
     dance = subset(
       dtf,
@@ -1524,8 +1526,16 @@ PltDance = function(
         !is.na(condition)
       ]))
     )
-
-    if (length(dance_conditions) != 1) {
+    #skip dances without a condition
+    if (length(dance_conditions) == 0) {
+      message(
+        "Skipping ID_d '",
+        id_d,
+        "': no non-missing condition."
+      )
+      next
+    }
+    if (length(dance_conditions) > 1) {
       stop(
         "ID_d '",
         id_d,
@@ -1563,10 +1573,35 @@ PltDance = function(
         "'."
       )
     }
+    #subset by condition
     condition_col = cond_cols[[
       condition_name
     ]]
-
+    #find the angles to plot
+    dance = within(
+      dance,
+      {
+        plot_angle = switch(
+          angle_for,
+          sun = dance_sun_angle,
+          feeder = deg(feeder_angle)
+        )
+        plot_radians = rad(plot_angle)
+        valid_angle = is.finite(
+          plot_angle
+        ) &
+          is.finite(waggle_run)
+      }
+    )
+    if (!any(dance$valid_angle)) {
+      message(
+        "Skipping ID_d '",
+        id_d,
+        "': no valid angles."
+      )
+      next
+    }
+    #open the plot and grid
     plot(
       x = NULL,
       xlim = rlim * c(-1, 1),
@@ -1613,151 +1648,153 @@ PltDance = function(
         col = gray(0, alpha = cx)
       )
     }
+    #add the frame of reference (sun, feeder, North)
 
-    if (nrow(dance) > 0) {
-      dance = within(
-        dance,
-        {
-          plot_angle = switch(
+    ref_angle = with(
+      dance,
+      switch(
+        angle_for,
+        sun = feeder_az[1],
+        feeder = sun_az[1]
+      )
+    )
+    if (is.finite(ref_angle)) {
+      lines(
+        x = c(
+          0,
+          rlim * sin(rad(ref_angle))
+        ),
+        y = c(
+          0,
+          rlim * cos(rad(ref_angle))
+        ),
+        col = adjustcolor(
+          col = switch(
             angle_for,
-            sun = dance_sun_angle,
-            feeder = deg(feeder_angle)
-          )
-          plot_radians = rad(plot_angle)
-          valid_angle = is.finite(
-            plot_angle
-          ) &
-            is.finite(waggle_run)
-        }
-      )
-
-      with(
-        subset(dance, valid_angle),
-        {
-          points(
-            x = waggle_run *
-              sin(plot_radians),
-            y = waggle_run *
-              cos(plot_radians),
-            bg = adjustcolor(
-              col = condition_col,
-              alpha.f = 0.4
-            ),
-            col = condition_col,
-            pch = 21,
-            lwd = cx,
-            cex = cx * 0.5
-          )
-        }
-      )
-
-      if (any(dance$valid_angle)) {
-        mean_vector = with(
-          subset(dance, valid_angle),
-          {
-            mean_sin = mean(sin(
-              plot_radians
-            ))
-            mean_cos = mean(cos(
-              plot_radians
-            ))
-            list(
-              mu = atan2(
-                mean_sin,
-                mean_cos
-              ),
-              rho = sqrt(
-                mean_sin^2 + mean_cos^2
-              )
-            )
-          }
-        )
-        lines(
-          x = c(
-            0,
-            rlim *
-              sin(mean_vector$mu) *
-              mean_vector$rho
+            sun = "navajowhite4",
+            feeder = "yellow3"
           ),
-          y = c(
-            0,
-            rlim *
-              cos(mean_vector$mu) *
-              mean_vector$rho
+          alpha.f = 0.5
+        ),
+        lwd = 3
+      )
+      #add a line at 0° for the other
+      lines(
+        x = c(
+          0,
+          rlim * sin(rad(0))
+        ),
+        y = c(
+          0,
+          rlim * cos(rad(0))
+        ),
+        col = adjustcolor(
+          col = switch(
+            angle_for,
+            feeder = "navajowhite4",
+            sun = "yellow3"
+          ),
+          alpha.f = 0.5
+        ),
+        lwd = 3
+      )
+    }
+
+    true_north_angle = with(
+      dance,
+      switch(
+        angle_for,
+        sun = -sun_az[1],
+        feeder = -feeder_az[1]
+      )
+    )
+    if (is.finite(true_north_angle)) {
+      lines(
+        x = c(
+          0,
+          rlim *
+            sin(rad(true_north_angle))
+        ),
+        y = c(
+          0,
+          rlim *
+            cos(rad(true_north_angle))
+        ),
+        col = adjustcolor(
+          col = "black",
+          alpha.f = 0.5
+        ),
+        lwd = 3
+      )
+    }
+    #add the points
+    with(
+      subset(dance, valid_angle),
+      {
+        points(
+          x = waggle_run *
+            sin(plot_radians),
+          y = waggle_run *
+            cos(plot_radians),
+          bg = adjustcolor(
+            col = condition_col,
+            alpha.f = 0.4
           ),
           col = condition_col,
-          lwd = cx
+          pch = 21,
+          lwd = cx,
+          cex = cx * 0.5
         )
       }
-
-      ref_angle = with(
-        dance,
-        switch(
-          angle_for,
-          sun = feeder_az[1],
-          feeder = sun_az[1]
-        )
-      )
-      if (is.finite(ref_angle)) {
-        lines(
-          x = c(
-            0,
-            rlim * sin(rad(ref_angle))
-          ),
-          y = c(
-            0,
-            rlim * cos(rad(ref_angle))
-          ),
-          col = adjustcolor(
-            col = switch(
-              angle_for,
-              sun = "navajowhite4",
-              feeder = "yellow3"
+    )
+    #calcualte the mean vector
+    if (any(dance$valid_angle)) {
+      mean_vector = with(
+        subset(dance, valid_angle),
+        {
+          mean_sin = mean(sin(
+            plot_radians
+          ))
+          mean_cos = mean(cos(
+            plot_radians
+          ))
+          list(
+            mu = atan2(
+              mean_sin,
+              mean_cos
             ),
-            alpha.f = 0.5
-          ),
-          lwd = 3
-        )
-      }
-
-      true_north_angle = with(
-        dance,
-        switch(
-          angle_for,
-          sun = -sun_az[1],
-          feeder = -feeder_az[1]
-        )
+            rho = sqrt(
+              mean_sin^2 + mean_cos^2
+            )
+          )
+        }
       )
-      if (is.finite(true_north_angle)) {
-        lines(
-          x = c(
-            0,
-            rlim *
-              sin(rad(true_north_angle))
-          ),
-          y = c(
-            0,
-            rlim *
-              cos(rad(true_north_angle))
-          ),
-          col = adjustcolor(
-            col = "black",
-            alpha.f = 0.5
-          ),
-          lwd = 3
-        )
-      }
+      lines(
+        x = c(
+          0,
+          rlim *
+            sin(mean_vector$mu) *
+            mean_vector$rho
+        ),
+        y = c(
+          0,
+          rlim *
+            cos(mean_vector$mu) *
+            mean_vector$rho
+        ),
+        col = condition_col,
+        lwd = cx
+      )
     }
 
     mtext(
       paste(
         id_d,
-        unique(dance$time),
         condition_name
       ),
       side = 1,
       line = -1,
-      cex = cx
+      cex = cx_lab
     )
   }
 }
