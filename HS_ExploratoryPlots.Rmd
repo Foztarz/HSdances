@@ -28,6 +28,7 @@ editor_options:
 - Feeder angle plotting function +
 - Solar ephemeris plots +
 - Elevation-accuracy plots +
+- Add bimodality 
 - Paired dances
 - All dances
 
@@ -1151,6 +1152,10 @@ with(subset(rayleigh_tests,
 
 ```
 
+
+## Bimodality
+
+
 ## Consistency
 
 ### By condition
@@ -1593,6 +1598,7 @@ plot(
   ylab = "", #"Mean vector length",
   main = "Solar Sky Dance Accuracy",
   col = adjustcolor(
+        cond_cols$solar,
     alpha.f = 0.5
   ),
   bg = gray(level = 0, alpha = 0.1),
@@ -1849,3 +1855,233 @@ with(
   }
 )
 ```
+
+# Condition contrasts
+
+## Find pairs of dances
+Find dances by the same individual within the same experiment for different conditions. 
+Ideally these should be close together in time.
+
+```{r sequential-dances-test}
+#Test on one individual
+id_test = "22b"
+
+mv_subs_test = subset(mean_vectors,
+                      ID %in% id_test)
+
+mv_subs_test = within(mv_subs_test,
+                      {
+                      #find pairs of sequential dances
+                      ID_d_pair = c(NA,
+                                    sapply(X = unique(ID_d)[-1],
+                                         FUN = function(i)
+                                           {
+                                         paste(ID_d[
+                                           which(ID_d %in% i) + c(-1,0)
+                                           ],
+                                           collapse = " - "
+                                           )  
+                                         }
+                                         )
+                                  )
+                      #find pairs of sequential conditions
+                      cond_pair = c(NA,
+                                    sapply(X = unique(ID_d)[-1],
+                                         FUN = function(i)
+                                           {
+                                         paste(condition[
+                                           which(ID_d %in% i) + c(-1,0)
+                                           ],
+                                           collapse = " - "
+                                           )  
+                                         }
+                                         )
+                                  )
+                      el_diff = c(NA, #1st dance paired with nothing
+                                  diff(sun_el)) # sequential differences in sun-elevation
+                      day_diff = c(NA,
+                                   diff(as.numeric(day)) )
+                      is_paired = (el_diff < 15) & #elevation differs by less than 15°
+                                  (day_diff == 0) #on (exactly) the same day
+                      }
+                      ) 
+
+pairs_test = data.frame(
+  do.call(what = rbind,
+                     args = with(subset(x = mv_subs_test,
+                    subset = is_paired),
+                  strsplit(x = unique(ID_d_pair), split = " - ")
+                  )
+)
+)
+names(pairs_test) = c("dance1", "dance2")
+
+#find dance conditions
+pairs_test = within(pairs_test,
+                    {
+                      cond1 = sapply(X = dance1,
+                                     FUN = function(i)
+                                       {
+                                       subset(mv_subs_test, ID_d %in% i)$condition
+                                     }
+                                    )
+                      cond2 = sapply(X = dance2,
+                                     FUN = function(i)
+                                       {
+                                       subset(mv_subs_test, ID_d %in% i)$condition
+                                     }
+                                    )
+                    }
+                    )
+MuPairDiff = function(d1, d2, dta) {
+  # print(dta); stop()
+        subset(dta, dta$ID_d %in% d2)$mu -
+          subset(dta, dta$ID_d %in% d1)$mu
+      }
+#vertical -> horizontal
+vh_test_mu = with(
+  subset(
+    x = pairs_test,
+    cond1 %in%
+      "vertical" &
+      cond2 %in% "horizontal"
+  ),
+  {
+    mapply(
+      FUN = MuPairDiff,
+      d1 = dance1,
+      d2 = dance2,
+      dta = list(mean_vectors)
+    )
+  }
+)
+#horizontal -> vertical
+hv_test_mu = with(
+  subset(
+    x = pairs_test,
+    cond1 %in%
+      "horizontal" &
+      cond2 %in% "vertical"
+  ),
+  {
+    mapply(
+      FUN = MuPairDiff,
+      d1 = dance1,
+      d2 = dance2,
+      dta = list(mean_vectors)
+    )
+  }
+)
+#vertical -> vertical
+vv_test_mu = with(
+  subset(
+    x = pairs_test,
+    cond1 %in%
+      "vertical" &
+      cond2 %in% "vertical"
+  ),
+  {
+    mapply(
+      FUN = MuPairDiff,
+      d1 = dance1,
+      d2 = dance2,
+      dta = list(mean_vectors)
+    )
+  }
+)
+#horizontal -> antisolar
+ha_test_mu = with(
+  subset(
+    x = pairs_test,
+    cond1 %in%
+      "horizontal" &
+      cond2 %in% "antisolar"
+  ),
+  {
+    mapply(
+      FUN = MuPairDiff,
+      d1 = dance1,
+      d2 = dance2,
+      dta = list(mean_vectors)
+    )
+  }
+)
+#antisolar -> horizontal
+ah_test_mu = with(
+  subset(
+    x = pairs_test,
+    cond1 %in%
+      "antisolar" &
+      cond2 %in% "horizontal"
+  ),
+  {
+    mapply(
+      FUN = MuPairDiff,
+      d1 = dance1,
+      d2 = dance2,
+      dta = list(mean_vectors)
+    )
+  }
+)
+#antisolar -> solar
+as_test_mu = with(
+  subset(
+    x = pairs_test,
+    cond1 %in%
+      "antisolar" &
+      cond2 %in% "solar"
+  ),
+  {
+    mapply(
+      FUN = MuPairDiff,
+      d1 = dance1,
+      d2 = dance2,
+      dta = list(mean_vectors)
+    )
+  }
+)
+#solar -> antisolar
+sa_test_mu = with(
+  subset(
+    x = pairs_test,
+    cond1 %in%
+      "solar" &
+      cond2 %in% "antisolar"
+  ),
+  {
+    mapply(
+      FUN = MuPairDiff,
+      d1 = dance1,
+      d2 = dance2,
+      dta = list(mean_vectors)
+    )
+  }
+)
+
+  par(
+    mfrow = c(2, 2),
+    mar = c(0, 0, 0, 0),
+    oma = c(1, 0, 0, 0)
+  )
+PCfun(vv_test_mu,
+      col = cond_cols$vertical,
+      title = "Vertical - Vertical")
+PCfun(c(vh_test_mu, -hv_test_mu),
+      col = cond_cols$horizontal,
+      title = "Horizontal - Vertical")
+PCfun(c(ha_test_mu,-ah_test_mu),
+      col = cond_cols$antisolar,
+      title = "Antisolar - Horizontal")
+# PCfun(c(as_test_mu,-sa_test_mu),
+#       col = cond_cols$solar,
+#       title = "Solar - Antisolar")
+PCfun(c(as_test_mu),
+      col = cond_cols$solar,
+      title = "Solar - Antisolar")
+mtext(text = "Sequential mean direction changes, B22",
+           side = 1,
+      line = -0.25,
+      outer = TRUE)
+
+```
+
