@@ -128,8 +128,8 @@ cond_cols = list(
   vertical = 'darkred',
   horizontal = 'darkgreen',
   tilted = 'seagreen',
-  solar = 'blue4',
   antisolar = 'cyan4',
+  solar = 'blue4',
   zenith = "skyblue3"
 )
 
@@ -1093,6 +1093,25 @@ with(
 
 
 ```{r dance-mean-vectors}
+#if this already exists, by default load instead of calculating
+if (
+  file.exists(
+    file.path(
+      unique(dirname(path_file))[1],
+      "hs_mean_vectors.csv"
+    )
+  )
+) {
+  print("loading pre-calculated mean vectors")
+  mean_vectors = read.table(
+    file = file.path(
+      unique(dirname(path_file))[1],
+      "hs_mean_vectors.csv"
+    ),
+    header = TRUE,
+    sep = ','
+  )
+} else {
 #calculate mean vectors
 mean_vectors = aggregate(cangle~ID_d+ #for each dance 
                            ID+condition+sun_az+sun_el + # also save these variables
@@ -1132,6 +1151,7 @@ mean_vectors = within(mean_vectors,
                         kappa = mle_estimates$cangle[,'kappa']
                       }
 )
+}
 #check how many dances would count as "oriented"
 print(paste("Rayleigh p<0.05, proportion of all dances:") )
 #all dances
@@ -1155,6 +1175,249 @@ with(subset(rayleigh_tests,
 
 ## Bimodality
 
+Some of the dances may be bimodal, also calculate the bimodal means.
+
+This takes nearly 10 minutes to calculate so load saved version if available.
+
+```{r, add-bimodality}
+#this takes a very long time!
+if (
+  file.exists(
+    file.path(
+      unique(dirname(path_file))[1],
+      "hs_mean_vectors.csv"
+    )
+  )
+) {
+  print("loading pre-calculated mean vectors")
+  mean_vectors = read.table(
+    file = file.path(
+      unique(dirname(path_file))[1],
+      "hs_mean_vectors.csv"
+    ),
+    header = TRUE,
+    sep = ','
+  )
+} else {
+  #one set of angles per dance
+  dance_angles = with(
+    hd,
+    split(cangle, ID_d)
+  )
+  #fit in parallel
+  cl = parallel::makeCluster(
+    parallel::detectCores() - 1
+  )
+  invisible({
+    parallel::clusterEvalQ(cl, {
+      source('HS_functions.R')
+    })
+  })
+  bim_time = system.time(
+    {
+      bim_list = parallel::parLapply(
+        cl = cl,
+        X = dance_angles,
+        fun = BiMod_est,
+        niter = 1e4,
+        lambda.min = 0.5, #mu1 should be main or equal
+        q.diff = rad(90) #means at least 90° apart, based on Rossel et al., 1979 (45° default for circ_mle)
+      )
+    }
+  )
+  print(round(bim_time/60, 2))#time taken in minutes
+  parallel::stopCluster(cl)
+
+  #collect into a data frame, one row per dance
+  bim_estimates = data.frame(
+    ID_d = names(bim_list),
+    do.call(rbind, bim_list)
+  )
+  names(bim_estimates)[-1] = paste0(
+    'bim_',
+    names(bim_estimates)[-1]
+  )
+
+  #match ID type to the summary table before merging
+  bim_estimates$ID_d = type.convert(
+    bim_estimates$ID_d,
+    as.is = TRUE
+  )
+
+  #add to the summary table by dance ID
+  mean_vectors = merge(
+    mean_vectors,
+    bim_estimates,
+    by = 'ID_d'
+  )
+  # Takes a long time to calculate. Write out for later use.
+  write.table(x = mean_vectors,
+            file = file.path(unique(dirname(path_file))[1], "hs_mean_vectors.csv"),
+            sep = ',',
+            row.names = FALSE
+            )
+}
+
+par(mfrow = c(2,3))
+for (cond in names(cond_cols)) {
+with(
+    subset(
+      mean_vectors,
+      condition %in% cond
+    ),
+    {
+      hist(bim_weight1,
+     breaks = (5:10)/10,#bins 0.1 wide from 0.5 to 1.0
+     main = cond,
+     xlab = 'Bimodal                            Unimodal',
+     col = cond_cols[[cond]],
+     border = NA)
+    }
+  )
+}
+mtext(side = 3,
+      outer = TRUE,
+      line = -1.5,
+      text = "Proportion of waggle runs towards primary mean")
+```
+### By sun elevation
+```{r, bimodality-sun-elevation}
+#Low elevation
+par(mfrow = c(2,3))
+for (cond in names(cond_cols)) {
+with(
+    subset(
+      mean_vectors,
+      sun_el < 15 &
+      condition %in% cond
+    ),
+    {
+      if(length(bim_weight1) == 0)
+      {
+        plot(
+        NULL,
+        axes = FALSE,
+        xlim = c(0, 0),
+        ylim = c(0, 0),
+        xlab = "",
+        ylab = "",
+        main = ""
+      )
+      legend(
+        x = "center",
+        legend = paste(
+          "no",
+          cond,
+          "data found"
+        )
+      )
+      }else
+      {
+      hist(bim_weight1,
+     breaks = (5:10)/10,#bins 0.1 wide from 0.5 to 1.0
+     main = cond,
+     xlab = 'Bimodal                            Unimodal',
+     col = cond_cols[[cond]],
+     border = NA)
+      }
+    }
+  )
+}
+mtext(side = 3,
+      outer = TRUE,
+      line = -1.5,
+      text = "Proportion towards primary mean, low elevation")
+
+#Medium elevation
+for (cond in names(cond_cols)) {
+with(
+    subset(
+      mean_vectors,
+      sun_el > 30 & sun_el < 45 &
+      condition %in% cond
+    ),
+    {
+      if(length(bim_weight1) == 0)
+      {
+        plot(
+        NULL,
+        axes = FALSE,
+        xlim = c(0, 0),
+        ylim = c(0, 0),
+        xlab = "",
+        ylab = "",
+        main = ""
+      )
+      legend(
+        x = "center",
+        legend = paste(
+          "no",
+          cond,
+          "data found"
+        )
+      )
+      }else
+      {
+      hist(bim_weight1,
+     breaks = (5:10)/10,#bins 0.1 wide from 0.5 to 1.0
+     main = cond,
+     xlab = 'Bimodal                            Unimodal',
+     col = cond_cols[[cond]],
+     border = NA)
+      }
+    }
+  )
+}
+mtext(side = 3,
+      outer = TRUE,
+      line = -1.5,
+      text = "Proportion towards primary mean, medium elevation")
+
+#High elevation
+for (cond in names(cond_cols)) {
+with(
+    subset(
+      mean_vectors,
+      sun_el > 75 &
+      condition %in% cond
+    ),
+    {
+      if(length(bim_weight1) == 0)
+      {
+        plot(
+        NULL,
+        axes = FALSE,
+        xlim = c(0, 0),
+        ylim = c(0, 0),
+        xlab = "",
+        ylab = "",
+        main = ""
+      )
+      legend(
+        x = "center",
+        legend = paste(
+          "no",
+          cond,
+          "data found"
+        )
+      )
+      }else
+      {
+      hist(bim_weight1,
+     breaks = (5:10)/10,#bins 0.1 wide from 0.5 to 1.0
+     main = cond,
+     xlab = 'Bimodal                            Unimodal',
+     col = cond_cols[[cond]],
+     border = NA)
+      }
+    }
+  )
+}
+mtext(side = 3,
+      outer = TRUE,
+      line = -1.5,
+      text = "Proportion towards primary mean, high elevation")
+```
 
 ## Consistency
 
