@@ -1901,7 +1901,7 @@ mv_subs_test = within(mv_subs_test,
                                   diff(sun_el)) # sequential differences in sun-elevation
                       day_diff = c(NA,
                                    diff(as.numeric(day)) )
-                      is_paired = (el_diff < 15) & #elevation differs by less than 15°
+                      is_paired = (abs(el_diff) < 15) & #elevation differs by less than 15°
                                   (day_diff == 0) #on (exactly) the same day
                       }
                       ) 
@@ -2066,10 +2066,16 @@ sa_test_mu = with(
 PCfun(vv_test_mu,
       col = cond_cols$vertical,
       title = "Vertical - Vertical")
-PCfun(c(vh_test_mu, -hv_test_mu),
+# PCfun(c(vh_test_mu, -hv_test_mu),
+#       col = cond_cols$horizontal,
+#       title = "Horizontal - Vertical")
+PCfun(c(vh_test_mu),
       col = cond_cols$horizontal,
       title = "Horizontal - Vertical")
-PCfun(c(ha_test_mu,-ah_test_mu),
+# PCfun(c(ha_test_mu,-ah_test_mu),
+#       col = cond_cols$antisolar,
+#       title = "Antisolar - Horizontal")
+PCfun(c(ha_test_mu),
       col = cond_cols$antisolar,
       title = "Antisolar - Horizontal")
 # PCfun(c(as_test_mu,-sa_test_mu),
@@ -2085,3 +2091,296 @@ mtext(text = "Sequential mean direction changes, B22",
 
 ```
 
+
+Since mean vectors should be organised by calendar time by default, 
+sorting them by individual will allow us to determine the sequential differences.
+
+These can then be subset according to individual, and reorganised into true sequential pairs.
+
+```{r all-sequential-dances-test}
+#Sort mean vectors by individual
+
+mean_vectors = mean_vectors[order(mean_vectors$ID), ]#sort by individual
+
+#check the date ordering
+#are calendar dates in increasing order
+#check for an individual with lots of dances
+with(
+  subset(mean_vectors, ID %in% "22B"),
+  {
+    #calculate calendar dates and take sequential differences
+    tdiff = diff(as.POSIXct(
+      x = paste(day, time),
+      tz = "Africa/Johannesburg",
+      format = "%Y%m%d %H:%M:%OS"
+    ))
+    if (all(!(tdiff < 0))) { #N.B. some videos were close and are labelled with the same time
+      print(
+        "For B22, all dance times are in increasing order"
+      )
+    } else {
+      print(paste(
+        paste(
+          ID_d[
+            which(tdiff < 0) +
+              c(0, 1)
+          ],
+          collapse = " & "
+        ),
+        "are not in order!"
+      ))
+    }
+  }
+)
+
+#Set up data.frame with 1st and 2nd dance details
+ID_d1 = with(mean_vectors, ID_d[1:(length(u_id_d)-1)])#1st dances
+ID_d2 = with(mean_vectors, ID_d[2:length(u_id_d)])#2nd dances
+#align information about the pairs
+mv_pairs = data.frame( cbind( 
+                  subset(mean_vectors, ID_d %in% ID_d1),
+                  subset(mean_vectors, ID_d %in% ID_d2)
+                  )
+                ) 
+#names(mv_pairs) #the names for the 2nd dance columns now end in ".1"
+
+#select only dance pairs by the same individual
+mv_pairs = subset(mv_pairs, ID == ID.1)
+
+#add columns for differences
+mv_pairs = within(mv_pairs,
+                  {
+                    time_diff = as.POSIXct(
+                                  x = paste(day.1, time.1),
+                                  tz = "Africa/Johannesburg",
+                                  format = "%Y%m%d %H:%M:%OS"
+                                ) - as.POSIXct(
+                                  x = paste(day, time),
+                                  tz = "Africa/Johannesburg",
+                                  format = "%Y%m%d %H:%M:%OS"
+                                )#difference in time in seconds
+                    ele_diff = sun_el.1 - sun_el
+                    az_diff = Mod360.180(sun_az.1 - sun_az)
+                    mv_diff = mean_vector.1 - mean_vector
+                    kp_diff = kappa.1 - kappa
+                    mu_diff = Mod360.180(mu.1 - mu)
+                    
+                  }
+                  )
+#test again the all dances are sequential
+with(
+  mv_pairs,
+  {
+    if (all(!(time_diff < 0))) {
+      print(
+        "All dance pair times are in increasing order."
+      )
+    } else {
+      message(paste(
+        paste(
+          ID_d[
+            which(time_diff < 0)
+          ],
+          ID_d.1[
+            which(time_diff < 0)
+          ],
+          "\n"
+        ),
+        "are not in order!\n"
+      ))
+    }
+  }
+)
+
+
+mv_subs = subset(mv_pairs,
+                      (abs(ele_diff) < 15) & #elevation differs by less than 15°
+                                  (time_diff < 15*60) #less than 15 minutes
+                      ) 
+```
+
+
+```{r, dance-pairs-overview}
+par(
+  mfrow = c(2, 3),
+  mar = c(0, 0, 0, 0),
+  oma = c(1, 0, 0, 0)
+)
+#all controls
+with(subset(x = mv_subs,
+            subset = condition %in% "vertical" &
+              condition.1 %in% "vertical"),
+     {
+PCfun(mu_diff,
+      shrink = 2.0,
+      col = cond_cols$vertical,
+      title = "Vertical - Vertical")
+     }
+)
+with(subset(x = mv_subs,
+            subset = condition %in% "horizontal" &
+              condition.1 %in% "horizontal"),
+     {
+PCfun(mu_diff,
+      shrink = 2.0,
+      col = cond_cols$horizontal,
+      title = "Horizontal - Horizontal")
+     }
+)
+with(subset(x = mv_subs,
+            subset = condition %in% "tilted" &
+              condition.1 %in% "tilted"),
+     {
+PCfun(mu_diff,
+      shrink = 2.0,
+      col = cond_cols$tilted,
+      title = "Tilted - Tilted")
+     }
+)
+with(subset(x = mv_subs,
+            subset = condition %in% "antisolar" &
+              condition.1 %in% "antisolar"),
+     {
+PCfun(mu_diff,
+      shrink = 2.0,
+      col = cond_cols$antisolar,
+      title = "Antisolar - Antisolar")
+     }
+)
+with(subset(x = mv_subs,
+            subset = condition %in% "solar" &
+              condition.1 %in% "solar"),
+     {
+PCfun(mu_diff,
+      shrink = 2.0,
+      col = cond_cols$solar,
+      title = "Solar - Solar")
+     }
+)
+with(subset(x = mv_subs,
+            subset = condition %in% "zenith" &
+              condition.1 %in% "zenith"),
+     {
+PCfun(mu_diff,
+      shrink = 2.0,
+      col = cond_cols$zenith,
+      title = "Zenithal - Zenithal")
+     }
+)
+mtext(text = "Sequential mean direction changes, controls, all bees",
+           side = 1,
+      line = -0.25,
+      outer = TRUE)
+```
+
+
+```{r, condition-pair-comparisons}
+
+#collect comparisons
+
+#horizontal - vertical
+vh_mu_diff = with(subset(x = mv_subs,
+            subset = condition %in% "vertical" &
+              condition.1 %in% "horizontal" |
+              condition %in% "horizontal" &
+              condition.1 %in% "vertical" 
+         ),
+         {
+         ifelse(condition %in% "vertical",
+                yes = mu_diff,
+                no = -mu_diff)
+         }
+)
+
+#antisolar - horizontal
+ha_mu_diff = with(subset(x = mv_subs,
+            subset = condition %in% "horizontal" &
+              condition.1 %in% "antisolar" |
+              condition %in% "antisolar" &
+              condition.1 %in% "horizontal" 
+         ),
+         {
+         ifelse(condition %in% "horizontal",
+                yes = mu_diff,
+                no = -mu_diff)
+         }
+)
+
+#solar - horizontal
+hs_mu_diff = with(subset(x = mv_subs,
+            subset = condition %in% "horizontal" &
+              condition.1 %in% "solar" |
+              condition %in% "solar" &
+              condition.1 %in% "horizontal" 
+         ),
+         {
+         ifelse(condition %in% "horizontal",
+                yes = mu_diff,
+                no = -mu_diff)
+         }
+)
+
+#solar - antisolar
+as_mu_diff = with(subset(x = mv_subs,
+            subset = condition %in% "antisolar" &
+              condition.1 %in% "solar" |
+              condition %in% "solar" &
+              condition.1 %in% "antisolar" 
+         ),
+         {
+         ifelse(condition %in% "antisolar",
+                yes = mu_diff,
+                no = -mu_diff)
+         }
+)
+
+#zenithal - horizontal
+hz_mu_diff = with(subset(x = mv_subs,
+            subset = condition %in% "horizontal" &
+              condition.1 %in% "zenith" |
+              condition %in% "zenith" &
+              condition.1 %in% "horizontal" 
+         ),
+         {
+         ifelse(condition %in% "horizontal",
+                yes = mu_diff,
+                no = -mu_diff)
+         }
+)
+
+par(
+  mfrow = c(2, 3),
+  mar = c(0, 0, 0, 0),
+  oma = c(1, 0, 0, 0)
+)
+
+PCfun(vh_mu_diff,
+      shrink = 2.0,
+      col = cond_cols$horizontal,
+      title = "Horizontal - Vertical")
+
+PCfun(ha_mu_diff,
+      shrink = 2.0,
+      col = cond_cols$antisolar,
+      title = "Antisolar - Horizontal")
+
+PCfun(hs_mu_diff,
+      shrink = 2.0,
+      col = cond_cols$solar,
+      title = "Solar - Horizontal")
+
+PCfun(as_mu_diff,
+      shrink = 2.0,
+      col = cond_cols$solar,
+      title = "Solar - Antisolar")
+
+PCfun(hz_mu_diff,
+      shrink = 2.0,
+      col = cond_cols$zenith,
+      title = "Zenithal - Horizontal")
+
+mtext(text = "Sequential mean direction changes, all bees",
+           side = 1,
+      line = -0.25,
+      outer = TRUE)
+```
