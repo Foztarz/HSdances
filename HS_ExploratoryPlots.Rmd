@@ -29,7 +29,7 @@ editor_options:
 - Solar ephemeris plots +
 - Elevation-accuracy plots +
 - Add bimodality +
-- Paired dances
+- Paired dances +
 - All dances
 
 ```{r setup, include=FALSE}
