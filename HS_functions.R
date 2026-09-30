@@ -257,6 +257,34 @@ IndCond = function(
   return(length(unique(row_pastes)))
 }
 
+#Identify difference between two conditions for one individual
+PairedDiff = function(
+    dta,
+    cond_1,
+    cond_2,
+    diff_var = "mu_diff"
+) {
+  with(
+    subset(
+      dta,
+      condition %in% #find both condition 1 followed by 2
+        cond_1 &
+        condition.1 %in% cond_2 |
+        condition %in% #and condition 2 followed by 1
+        cond_2 &
+        condition.1 %in% cond_1
+    ),
+    return(
+      ifelse(test = 
+               condition %in% cond_1, #if condition 1 is 1st
+             yes = get(diff_var, inherits = FALSE), #retain sign
+             no = -get(diff_var, inherits = FALSE) #otherwise reverse sign
+      )
+    )
+  )
+}
+
+
 #Angular difference between two conditions for one individual
 MuDiff = function(
   id, #individual name
