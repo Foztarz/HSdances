@@ -28,7 +28,7 @@ editor_options:
 - Feeder angle plotting function +
 - Solar ephemeris plots +
 - Elevation-accuracy plots +
-- Add bimodality 
+- Add bimodality +
 - Paired dances
 - All dances
 
@@ -95,8 +95,8 @@ hd = within(hd, {
       "vertical",
       "horizontal",
       "tilted",
-      "solar",
       "antisolar",
+      "solar",
       "zenith"
     )
   ) #set up conditions as a factor in preferred order
@@ -1111,6 +1111,24 @@ if (
     header = TRUE,
     sep = ','
   )
+    #format
+  mean_vectors = within(mean_vectors, {
+  ID = as.factor(ID) # bee identifier as a factor
+  ID_d = as.factor(ID_d) # beedance identifier as a factor
+  day = as.factor(day) # date as a factor
+  condition = factor(
+    condition,
+    levels = c(
+      "vertical",
+      "horizontal",
+      "tilted",
+      "antisolar",
+      "solar",
+      "zenith"
+    )
+  )
+  }
+  ) #set up conditions as a factor in preferred order
 } else {
 #calculate mean vectors
 mean_vectors = aggregate(cangle~ID_d+ #for each dance 
@@ -1130,6 +1148,18 @@ mle_estimates = aggregate(cangle~ID_d+ #for each dance
                           data = hd,
                           FUN = MLE_est
 )
+
+
+#add to the summary table and 
+#calculate inverse softplus kappa
+mean_vectors = within(mean_vectors,
+                      {
+                        mu = deg(mle_estimates$cangle[,'mu'])
+                        kappa = mle_estimates$cangle[,'kappa']
+                      }
+)
+}
+
 #Rayleigh tests
 rayleigh_tests = aggregate(cangle~ID_d+ #for each dance 
                            ID+condition+sun_az+sun_el + # also save these variables
@@ -1142,16 +1172,6 @@ rayleigh_tests = aggregate(cangle~ID_d+ #for each dance
 rayleigh_tests = within(rayleigh_tests,
                       {p_rayleigh = cangle; rm(cangle)} # angle now indicates a mean vector, not an angle
 )
-
-#add to the summary table and 
-#calculate inverse softplus kappa
-mean_vectors = within(mean_vectors,
-                      {
-                        mu = deg(mle_estimates$cangle[,'mu'])
-                        kappa = mle_estimates$cangle[,'kappa']
-                      }
-)
-}
 #check how many dances would count as "oriented"
 print(paste("Rayleigh p<0.05, proportion of all dances:") )
 #all dances
@@ -1198,6 +1218,26 @@ if (
     header = TRUE,
     sep = ','
   )
+  
+  #format
+  mean_vectors = within(mean_vectors, {
+  ID = as.factor(ID) # bee identifier as a factor
+  ID_d = as.factor(ID_d) # beedance identifier as a factor
+  day = as.factor(day) # date as a factor
+  condition = factor(
+    condition,
+    levels = c(
+      "vertical",
+      "horizontal",
+      "tilted",
+      "antisolar",
+      "solar",
+      "zenith"
+    )
+  )
+  }
+  ) #set up conditions as a factor in preferred order
+  
 } else {
   #one set of angles per dance
   dance_angles = with(
@@ -1549,6 +1589,7 @@ with(
 )
 
 ```
+
 
 ### By sun elevation
 
