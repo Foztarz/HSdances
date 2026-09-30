@@ -1949,6 +1949,19 @@ MD_extract = function(md) {
   })
 }
 
+#Fit circular mixture models to each dance and extract the best model's parameters
+BiMod_est = function(x, ...) {
+  tryCatch(
+    unlist(MD_extract(
+      suppressWarnings( circ_mle(x, ...) )#will warn about conversion every time
+      )), #named vector: mu1, kappa1, mu2, kappa2, weight1, loglikelihood
+    error = function(e) { #keep one row per dance even if the fit fails
+      c(mu1 = NA, kappa1 = NA, mu2 = NA, kappa2 = NA, weight1 = NA,
+        loglikelihood = NA)
+    }
+  )
+}
+
 #function to calculate the likelihood of a sample, given the input ML parameters
 LLcalc = function(
   ml,
