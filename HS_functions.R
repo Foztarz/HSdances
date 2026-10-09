@@ -284,6 +284,18 @@ PairedDiff = function(
   )
 }
 
+#Use the primary mean for bimodal dances, otherwise the unimodal mean
+#returns angles in the range (-180,180), matching mu
+PrimaryMu = function(
+    mu, #unimodal mean (degrees)
+    bim_mu1, #primary mean of the bimodal fit (degrees)
+    bim_mu2 #secondary mean of the bimodal fit (degrees, NA if not bimodal)
+) {
+  ifelse(test = !is.na(bim_mu2), #dance is bimodal
+         yes = Mod360.180(bim_mu1), #primary mean, converted to (-180,180)
+         no = mu)
+}
+
 
 #Angular difference between two conditions for one individual
 MuDiff = function(
@@ -1951,7 +1963,7 @@ MD_extract = function(md) {
 
 #Fit circular mixture models to each dance and extract the best model's parameters
 BiMod_est = function(x, ...) {
-  tryCatch(
+  est = tryCatch(
     unlist(MD_extract(
       suppressWarnings( circ_mle(x, ...) )#will warn about conversion every time
       )), #named vector: mu1, kappa1, mu2, kappa2, weight1, loglikelihood
@@ -1960,6 +1972,16 @@ BiMod_est = function(x, ...) {
         loglikelihood = NA)
     }
   )
+  #circ_mle constrains weight1 symmetrically (lambda.min to 1-lambda.min),
+  #so relabel the modes so that the primary mean accounts for at least 50%
+  if (!is.na(est['mu2']) & !is.na(est['weight1']) & est['weight1'] < 0.5) {
+    est[c('mu1', 'mu2')] = est[c('mu2', 'mu1')]
+    est[c('kappa1', 'kappa2')] = est[c('kappa2', 'kappa1')]
+    est['weight1'] = 1 - est['weight1']
+  }
+  #express means in the range 0-360
+  est[c('mu1', 'mu2')] = est[c('mu1', 'mu2')] %% 360
+  return(est)
 }
 
 #function to calculate the likelihood of a sample, given the input ML parameters
