@@ -30,6 +30,7 @@ editor_options:
 - Elevation-accuracy plots +
 - Add bimodality +
 - Paired dances +
+- Limit paired dances sun azimuth difference
 - All dances
 
 ```{r setup, include=FALSE}
@@ -1260,7 +1261,8 @@ if (
         X = dance_angles,
         fun = BiMod_est,
         niter = 1e4,
-        lambda.min = 0.5, #mu1 should be main or equal
+        lambda.min = 0.25, #each mode accounts for at least 25%; BiMod_est relabels so mu1 is the main mode
+        exclude = c("M2B", "M2C"), #no mixtures of one mode and a uniform distribution
         q.diff = rad(90) #means at least 90° apart, based on Rossel et al., 1979 (45° default for circ_mle)
       )
     }
@@ -1320,6 +1322,8 @@ mtext(side = 3,
       line = -1.5,
       text = "Proportion of waggle runs towards primary mean")
 ```
+
+
 ### By sun elevation
 ```{r, bimodality-sun-elevation}
 #Low elevation
@@ -2404,13 +2408,21 @@ These can then be subset according to individual, and reorganised into true sequ
 ```{r all-sequential-dances-test}
 #Sort mean vectors by individual
 
-mean_vectors = mean_vectors[order(mean_vectors$ID), ]#sort by individual
+#sort by individual, then by date and time
+#(dance IDs follow several file naming conventions, so alphabetical order is not chronological)
+mean_vectors = mean_vectors[order(mean_vectors$ID,
+                                  as.POSIXct(
+                                    x = paste(mean_vectors$day, mean_vectors$time),
+                                    tz = "Africa/Johannesburg",
+                                    format = "%Y%m%d %H:%M:%OS"
+                                  )
+                                  ), ]
 
 #check the date ordering
 #are calendar dates in increasing order
 #check for an individual with lots of dances
 with(
-  subset(mean_vectors, ID %in% "22B"),
+  subset(mean_vectors, ID %in% "22b"),
   {
     #calculate calendar dates and take sequential differences
     tdiff = diff(as.POSIXct(
@@ -2450,6 +2462,9 @@ mv_pairs = data.frame( cbind(
 
 #select only dance pairs by the same individual
 mv_pairs = subset(mv_pairs, ID == ID.1)
+
+#select only dance pairs on the same day
+mv_pairs = subset(mv_pairs, day == day.1)
 
 #add columns for differences
 mv_pairs = within(mv_pairs,
@@ -2502,6 +2517,7 @@ mv_subs = subset(mv_pairs,
                                   (time_diff < 30*60) #less than 30 minutes
                       ) 
 ```
+
 
 ## Direction
 
@@ -2603,13 +2619,91 @@ PCfun(angles = PairedDiff(dta =
 PCfun(PairedDiff(dta = 
   mv_subs,
   cond_1 = "horizontal",
-  cond_2 = "zenithal"
+  cond_2 = "zenith"
 ),
       shrink = 2.0,
       col = cond_cols$zenith,
       title = "Zenithal - Horizontal")
 
 mtext(text = "Sequential mean direction changes, all bees",
+           side = 1,
+      line = -0.25,
+      outer = TRUE)
+```
+
+### Primary mean of bimodal dances
+
+For dances where the best fitting model has two modes (`bim_mu2` is not `NA`), the unimodal mean (`mu`) can fall between the two modes.
+Instead, use the primary mean (`bim_mu1`) for these dances, and the unimodal mean for all others.
+The paired differences are saved as `bmu_diff` in `mv_pairs` and `mv_subs`, in the same format as `mu_diff`, so they can be used with `PairedDiff(..., diff_var = "bmu_diff")`.
+`BiMod_est` labels the modes so that the primary mean accounts for at least 50% of waggle runs (`bim_weight1` $\ge 0.5$).
+
+```{r, dance-pairs-bimodal-primary}
+#add columns for differences, in the same format as mu_diff
+#PrimaryMu (HS_functions.R) uses the primary mean for bimodal dances, otherwise the unimodal mean
+mv_pairs = within(mv_pairs,
+                  {
+                    bimodal_pair = !is.na(bim_mu2) | !is.na(bim_mu2.1)#either dance is bimodal
+                    bmu_diff = Mod360.180(
+                                PrimaryMu(mu.1, bim_mu1.1, bim_mu2.1) -
+                                PrimaryMu(mu, bim_mu1, bim_mu2)
+                              )
+                  }
+                  )
+#the subset keeps the row names of mv_pairs
+mv_subs = within(mv_subs,
+                 {
+                   bimodal_pair = mv_pairs[rownames(mv_subs), 'bimodal_pair']
+                   bmu_diff = mv_pairs[rownames(mv_subs), 'bmu_diff']
+                 }
+                 )
+print(paste(sum(mv_subs$bimodal_pair), 'of', nrow(mv_subs),
+            'dance pairs include a bimodal dance'))
+
+#controls
+par(
+  mfrow = c(2, 3),
+  mar = c(0, 0, 0, 0),
+  oma = c(1, 0, 0, 0)
+)
+for (cond in names(cond_cols))
+{
+  PCfun(PairedDiff(dta = mv_subs,
+                   cond_1 = cond,
+                   cond_2 = cond,
+                   diff_var = "bmu_diff"),
+        shrink = 2.0,
+        col = cond_cols[[cond]],
+        title = tools::toTitleCase(paste(cond, '-', cond)))
+}
+mtext(text = "Sequential primary direction changes, controls, all bees",
+           side = 1,
+      line = -0.25,
+      outer = TRUE)
+
+#condition changes: 1st condition, 2nd condition
+cond_pairs = list(c("vertical", "horizontal"),
+                  c("horizontal", "antisolar"),
+                  c("horizontal", "solar"),
+                  c("antisolar", "solar"),
+                  c("horizontal", "zenith")
+                  )
+par(
+  mfrow = c(2, 3),
+  mar = c(0, 0, 0, 0),
+  oma = c(1, 0, 0, 0)
+)
+for (cp in cond_pairs)
+{
+  PCfun(PairedDiff(dta = mv_subs,
+                   cond_1 = cp[1],
+                   cond_2 = cp[2],
+                   diff_var = "bmu_diff"),
+        shrink = 2.0,
+        col = cond_cols[[cp[2]]],
+        title = tools::toTitleCase(paste(cp[2], '-', cp[1])))
+}
+mtext(text = "Sequential primary direction changes, all bees",
            side = 1,
       line = -0.25,
       outer = TRUE)
@@ -2698,7 +2792,7 @@ PCfun(angles = PairedDiff(dta =
 PCfun(PairedDiff(dta = 
   mv_low,
   cond_1 = "horizontal",
-  cond_2 = "zenithal"
+  cond_2 = "zenith"
 ),
       col = cond_cols$zenith,
       title = "Zenithal - Horizontal")
@@ -2792,7 +2886,7 @@ PCfun(angles = PairedDiff(dta =
 PCfun(PairedDiff(dta = 
   mv_med,
   cond_1 = "horizontal",
-  cond_2 = "zenithal"
+  cond_2 = "zenith"
 ),
       col = cond_cols$zenith,
       title = "Zenithal - Horizontal")
@@ -2886,7 +2980,7 @@ PCfun(angles = PairedDiff(dta =
 PCfun(PairedDiff(dta = 
   mv_hig,
   cond_1 = "horizontal",
-  cond_2 = "zenithal"
+  cond_2 = "zenith"
 ),
       col = cond_cols$zenith,
       title = "Zenithal - Horizontal")
