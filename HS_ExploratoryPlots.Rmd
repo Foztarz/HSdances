@@ -30,6 +30,7 @@ editor_options:
 - Elevation-accuracy plots +
 - Add bimodality +
 - Paired dances +
+- Check bimodal for uniform dists
 - Limit paired dances sun azimuth difference
 - All dances
 
@@ -299,7 +300,6 @@ with(subset(hd, ID_d %in% '73b_00027_16:51:00_20250119' & waggle_run %in% c(20, 
      {
 points(x = waggle_run*sin(rad(dance_sun_angle)),
      y = waggle_run*cos(rad(dance_sun_angle)),
-     labels = paste(' run', waggle_run),
      col = hcl.colors(4, palette = "dark2"),
      pch = 19)
 text(x = waggle_run*sin(rad(dance_sun_angle)),
@@ -878,7 +878,9 @@ with(
 
 ## Horizontal dances
 
-Is this similar for the horizontal
+Is this similar for the horizontal control?
+Is this offset also present when the bees view the sky, or do the accommodate 
+using their recent memory of the view during their return flight?
 
 ```{r all-ephemeris-horizontal}
 
@@ -1092,6 +1094,18 @@ with(
 
 # Calculate dance means
 
+To summarise each dance calculate the maximum likelihood estimates for mean angle,
+concentration (consistency across waggle runs) and the length of the mean resultant vector.
+These calculations rely on the `circular` package, and require data to be in `circular` format,
+so we use `cangle` (the circular formatted feeder angle).
+`aggregate` finds all combinations of each variable in the dataset to summarise over. 
+Including `ID_d` ensures that estimates will be calculated for each dance, but 
+adding other variables ensures that they are also saved alongside those estimates. 
+Since individual ID, stimulus condition, sun azimuth & elevation, and time & day 
+did not change within a single dance, waggle runs from the entire dance are used for each estimate.
+
+For reference, we can also calculate the Rayleigh tests that might otherwise be used 
+to check for "orientedness" (non-uniform distributions of waggle run angles) within each dance.
 
 ```{r dance-mean-vectors}
 #if this already exists, by default load instead of calculating
@@ -1177,7 +1191,7 @@ rayleigh_tests = within(rayleigh_tests,
 print(paste("Rayleigh p<0.05, proportion of all dances:") )
 #all dances
 with(rayleigh_tests,
-     print( mean(p_rayleigh <0.05) *100,digits = 2)
+     print( paste(round(mean(p_rayleigh <0.05) *100,digits = 1), "%"))
      )
 
 #by condition
@@ -1187,16 +1201,29 @@ for(cond in levels(rayleigh_tests$condition))
 print(paste("Rayleigh p<0.05, proportion of", cond, "dances:") )
 with(subset(rayleigh_tests,
             subset = condition %in% cond),
-     print(mean(p_rayleigh <0.05) *100,digits = 2)
+     print(paste(round(mean(p_rayleigh <0.05) *100,digits = 1), "%"))
      )
 }
 
 ```
 
+With the hive horizontal, a large proportion ($25\%\text{–}40\%$) of dances would 
+be assigned the null hypothesis of disorientedness (uniformity). 
+Inspection of the raw dances in fact suggests many of these are in fact bimodal.
+For these dances, the MLE unimodal mean angle and concentration to not accurately 
+summarise the dance direction and consistency.
+
 
 ## Bimodality
 
-Some of the dances may be bimodal, also calculate the bimodal means.
+Since some of the dances may be bimodal, we can also calculate the maximum likelihood estimates 
+for distributions with two modes. For this we use the package `circMLE` and corresponding 
+`circ_mle` function, choosing the automatically-identified `bestmodel` based on AICc. 
+Since we are interested in distributions with two consistent means, we exclude mixtures of 
+unimodal (oriented) and uniform (disoriented) waggle runs "M2B" and "M2C", and focus on cases 
+in which each mean accounts for at least $25\%$ of waggle runs. Identities of the two modes 
+are assigned stochastically, so post-processing assigns `mu1` as the mode that accounts for 
+the most waggle runs within a dance.
 
 This takes nearly 10 minutes to calculate so load saved version if available.
 
@@ -1210,7 +1237,7 @@ if (
     )
   )
 ) {
-  print("loading pre-calculated mean vectors")
+  print("loading pre-calculated MLE distributions")
   mean_vectors = read.table(
     file = file.path(
       unique(dirname(path_file))[1],
@@ -1468,7 +1495,7 @@ mtext(side = 3,
 ### By condition
 
 ```{r plot-mean-vector-lengths}
-par(mar = c(3, 3, 0, 0))
+par(mar = c(3, 4.3, 0, 0))
 boxplot(mean_vector~condition,
         data = mean_vectors,
         ylim = c(0,1),
@@ -1489,6 +1516,8 @@ abline(h = c(0,1))
 ```
 
 
+
+
 ```{r summarise-mean-vectors}
 mv_agg =  aggregate(mean_vector~condition,
            data = mean_vectors,
@@ -1500,6 +1529,48 @@ mv_agg = t(apply(mv_agg, MARGIN = 1, unlist))
 print(mv_agg,
   digits = 3)
 ```
+
+
+
+```{r plot-bimodal-rho}
+par(mar = c(3, 4.3, 0, 0))
+boxplot(A1(bim_kappa1)~condition,
+        data = mean_vectors,
+        ylim = c(0,1),
+        col = adjustcolor(cond_cols, alpha.f = 0.1),
+        border = 'gray50',
+        outline = FALSE)
+stripchart(A1(bim_kappa1)~condition,
+           data = mean_vectors,
+           add = TRUE,
+           vertical = TRUE,
+           method = 'jitter',
+           col = adjustcolor(cond_cols, alpha.f = 0.5),
+           bg = gray(level = 0,
+                     alpha = 0.1),
+           pch = 21)
+#Identify stimuli
+abline(h = c(0,1))
+
+boxplot(A1(bim_kappa2)~condition,
+        data = mean_vectors,
+        ylim = c(0,1),
+        col = adjustcolor(cond_cols, alpha.f = 0.1),
+        border = 'gray50',
+        outline = FALSE)
+stripchart(A1(bim_kappa2)~condition,
+           data = mean_vectors,
+           add = TRUE,
+           vertical = TRUE,
+           method = 'jitter',
+           col = adjustcolor(cond_cols, alpha.f = 0.5),
+           bg = gray(level = 0,
+                     alpha = 0.1),
+           pch = 21)
+#Identify stimuli
+abline(h = c(0,1))
+```
+
 
 ### By time of day
 
