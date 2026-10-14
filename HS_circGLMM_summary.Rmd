@@ -1,0 +1,1069 @@
+---
+title: "Circular GLMM Summary: Horizontal vs Vertical Dances"
+author: "James Foster"
+date: "`r Sys.Date()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    toc: true
+    fig_caption: true
+editor_options:
+  markdown:
+    wrap: sentence
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Details
+
+**DESCRIPTION**
+
+Load and plot the circular GLMM fitted in `HS_circGLMM_fit.ipynb` to describe waggle-run angles relative to the feeder for dances on horizontal and vertical combs at medium solar elevations.
+
+**INPUTS**
+
+`HS_functions.R`, `0Data/hs_dance_reorg.csv`, `0Data/hs_dance_medel_VH.feather`, `2Results/HS_unwrap_condition.nc`
+
+**OUTPUTS**
+
+Plotted estimates, predictions and contrasts.
+
+**REFERENCES**
+
+**modelling methods**
+
+- Sayin S, ...
+  Graving JM, $\textit{et~al}$.(2025) The behavioral mechanisms governing collective motion in swarming locusts.
+  $\textit{Science}$ 387,995-1000 [DOI:10.1126/science.adq7832](https://doi.org/10.1126/science.adq7832)
+
+- Graving JM, Sayin S, Costelloe BR, Goldshtein A & Foster JJ. Unwrapping circular statistics with Bayesian multilevel models.
+
+- Abril-Pla, O., Andreani, V., Carroll, C., Dong, L., Fonnesbeck, C. J., Kochurov, M., Kumar, R., Lao, J., Luhmann, C. C., Martin, O. A., et al. (2023).
+  `PyMC`: a modern, and comprehensive probabilistic programming framework in Python.
+  *PeerJ Computer Science* 9, e1516.
+
+- Capretto, T., Piho, C., Kumar, R., Westfall, J., Yarkoni, T., & Martin, O.
+  (2022) `Bambi`: A simple interface for fitting Bayesian linear models in Python. *Journal of Statistical Software* 103(15), 1-29. <doi:10.18637/jss.v103.i15>
+
+- Seyboldt, A., Carlson, E. L., & Carpenter, B.
+  (2026).
+  Preconditioning Hamiltonian Monte Carlo by minimizing Fisher Divergence.
+  *arXiv* preprint arXiv:2603.18845.
+
+# Motivation
+
+Dances on a horizontal comb are oriented directly towards the feeder, whereas dances on a vertical comb transpose the sun's azimuth into the direction of gravity.
+Here we compare the mean direction ($\mu$) and directional consistency ($\kappa$) of waggle runs relative to the feeder between these two conditions, at medium solar elevations ($30° <$ `sun_el` $< 45°$).
+
+The model fitted was:
+
+$\mu \sim$ V + (1 + V |Individual) + (1 |Dance)
+
+$\kappa \sim$ V + (1 + V |Individual) + (1 |Dance)
+
+where V is $0$ for horizontal and $1$ for vertical dances.
+Each dance was performed in a single condition, so dances (nested within individuals) have random intercepts only.
+
+# Set up workspace
+
+To extract these models, we need to load the appropriate functions.
+Make sure that the `circular`, `reticulate`, `arrow`, `posterior` and `bayesplot` packages are installed.
+Here we use the `HS-env` conda environment created for `HS_circGLMM_fit.ipynb`, so that `arviz` can read the saved model.
+
+```{r Load functions and packages}
+source('HS_functions.R')
+require(reticulate) #run python from R
+use_condaenv("HS-env",
+             required = TRUE)
+reticulate::py_config()
+#load .feather files (readable in R and Python)
+require(arrow)
+#process and plot MCMC data
+require(posterior)
+require(bayesplot)
+options(posterior.num_args = list(sigfig = 3))#for ease of reading
+
+#condition colours, as in HS_ExploratoryPlots.Rmd
+cond_cols = list(
+  vertical = 'darkred',
+  horizontal = 'darkgreen'
+)
+```
+
+# Prepare data
+
+Then load the data that will be used.
+This is our dance data, reorganised as `hs_dance_reorg.csv`, from which we select the same subset as in `HS_circGLMM_fit.ipynb`.
+
+```{r Load data}
+#Dance angle data
+hd = read.table(file = '0Data/hs_dance_reorg.csv',
+                header = T,
+                sep  = ',')
+#select medium elevations and the vertical or horizontal conditions
+medel_min = 30 # degrees
+medel_max = 45 # degrees
+hd = subset(hd,
+            sun_el > medel_min &
+              sun_el < medel_max &
+              condition %in% c('vertical', 'horizontal')
+            )
+head(hd)
+```
+
+## Format data
+
+Ensure that each variable has the correct data format for subsequent analysis.
+
+```{r Data formatting}
+hd = within(hd,
+            {
+              ID = droplevels(as.factor(ID)) # bee identifier as a factor
+              ID_d = droplevels(as.factor(ID_d)) # dance identifier as a factor
+              condition = factor(condition,
+                                 levels = c('horizontal', 'vertical'))
+              angle = feeder_angle # angle relative to feeder, between -pi and pi
+              angle_deg = deg(feeder_angle) # in degrees, for plotting
+            }
+)
+u_id = with(hd, unique(ID)) # unique bees
+length(u_id)#23 bees
+u_dance = with(hd, unique(ID_d)) # unique dances
+length(u_dance)#88 dances
+```
+
+To align individual and dance numbers from the model with the names in the `data.frame` we need to load these columns from the `pandas` version of the data.
+This data is saved in a `.feather` file (readable in both `R` and `Python`).
+
+```{r Load the data in pandas format}
+hd_pd = read_feather(file = "0Data/hs_dance_medel_VH.feather",
+                     col_select = c('Individual', 'Dance', 'Dance_label'))
+#check that the same rows were selected in the same order
+stopifnot(nrow(hd_pd) == nrow(hd),
+          all(hd_pd$Dance_label == as.character(hd$ID_d)))
+#find individuals and dances
+hd = within(hd,
+            {
+              Individual_nr = hd_pd$Individual
+              Dance_nr = hd_pd$Dance
+            }
+            )
+#lookup tables for individuals and dances
+id_tab = unique(hd[, c('ID', 'Individual_nr')])
+id_tab = id_tab[order(id_tab$Individual_nr), ]
+dance_tab = unique(hd[, c('ID_d', 'Dance_nr', 'ID', 'Individual_nr', 'condition')])
+dance_tab = dance_tab[order(dance_tab$Dance_nr), ]
+n_ind = nrow(id_tab)
+n_dance = nrow(dance_tab)
+```
+
+# Load Bambi model and extract draws for each parameter
+
+This loads draws from our fitted Bayesian model's posterior distribution.
+Because the model was built and saved in `Python`, we use the `reticulate` package to interface directly with `Python` libraries from within our `R` environment.
+
+**Parameter Structural Hierarchies**
+
+The model parameters are categorised into two groups based on their structural hierarchy: Population-Level (Global) Parameters (`global_params`) and Group-Level (Random) Effects (`group_params`), the latter for both individuals and dances.
+
+Converting the whole posterior to a data frame (`idata$posterior$to_dataframe()`) would cross the individual and dance dimensions (as well as each observation's predictions), so instead we extract each parameter separately as an array of `chain` $\times$ `draw` (`\times` level).
+
+```{r Load the model}
+# Define Parameter Groupings
+global_params = c(
+  "Intercept", "V",
+  "kappa_Intercept", "kappa_V",
+  "1|Individual_kappa", "V|Individual_kappa", "1|Dance_kappa",
+  "kappa_1|Individual_sigma", "kappa_V|Individual_sigma", "kappa_1|Dance_sigma"
+)
+
+group_params = c(
+  "1|Individual", "V|Individual", "1|Dance",
+  "kappa_1|Individual", "kappa_V|Individual", "kappa_1|Dance"
+)
+
+#Import arviz for model handling
+az = reticulate::import("arviz")
+# Load the NetCDF file
+idata = az$from_netcdf("2Results/HS_unwrap_condition.nc")
+```
+
+## Reshaping posterior draws into wide format
+
+Each parameter array is reshaped so that draws run sequentially within each chain, and each level of a group-level effect becomes its own column, named by its level in the model (e.g. `1_Individual_5`, `kappa_1_Dance_17`).
+The level names are the `Individual` and `Dance` codes from `hs_dance_medel_VH.feather`.
+
+- **Parameter Extraction**: `py_get_item` extracts each parameter as an `xarray.DataArray`, whose values are converted to an `R` array.
+
+- **Dynamic Pivoting**: Group-level effects have their special syntax characters replaced (\| to \_) for column safety and are pivoted out into one column per level.
+
+- **Posterior Class Conversion**: The wide data frame is converted into a `draws_df` object using the `posterior` package.
+
+```{r Reorganise draws by individual and dance}
+
+# Reshape posterior draws -------------------------------------------------
+post = idata$posterior
+draws_list = list()
+for(param in c(global_params, group_params))
+{
+  da = reticulate::py_get_item(post, param)
+  vals = da$values # chain x draw (x level)
+  if(length(dim(vals)) == 2)
+  {
+    # draws within chains
+    draws_list[[param]] = as.vector(t(vals))
+  }else
+  {
+    dim_name = unlist(da$dims)[3]
+    lvls = as.character(reticulate::py_get_item(da$coords, dim_name)$values)
+    mat = matrix(aperm(vals, c(2, 1, 3)),
+                 ncol = dim(vals)[3])
+    clean_base = gsub(pattern = "\\|",
+                      replacement =  "_",
+                      x =  param)
+    for(j in seq_along(lvls))
+    {
+      draws_list[[paste0(clean_base, "_", lvls[j])]] = mat[, j]
+    }
+  }
+}
+n_chains = dim(reticulate::py_get_item(post, 'Intercept')$values)[1]
+obs_per_chain = dim(reticulate::py_get_item(post, 'Intercept')$values)[2]
+draws_wide = data.frame(.chain = rep(x = 1:n_chains, each = obs_per_chain),
+                        .iteration = rep(x = 1:obs_per_chain, times = n_chains),
+                        draws_list,
+                        check.names = FALSE)
+#check that every individual and dance was found
+stopifnot(all(paste0("1_Individual_", id_tab$Individual_nr) %in% colnames(draws_wide)),
+          all(paste0("1_Dance_", dance_tab$Dance_nr) %in% colnames(draws_wide)))
+
+# Export to draws dataframe
+draws_final = posterior::as_draws_df(draws_wide)
+```
+
+# Inspect model estimates
+
+```{r Inspect main effects}
+mcmc_trace(draws_final,
+           pars = c('Intercept', 'V'),
+           transformations = unwrap_circular_deg)
+mcmc_trace(draws_final,
+           pars = paste0("kappa_",
+                         c('Intercept', 'V')) )
+mcmc_trace(draws_final,
+           pars = c('1|Individual_kappa',
+                    'V|Individual_kappa',
+                    '1|Dance_kappa') )
+mcmc_trace(draws_final,
+           pars = c('kappa_1|Individual_sigma',
+                    'kappa_V|Individual_sigma',
+                    'kappa_1|Dance_sigma') )
+```
+
+Check the $\hat{R}$ values for the unwrapped estimates (convergence is indicated by $\hat{R}<1.01$).
+
+```{r summarise fixef with arviz}
+azsum_fixed = az$summary(idata,
+           var_names=c("Intercept",
+               "V",
+                "kappa_Intercept",
+               "kappa_V"
+                ),
+    circ_var_names=c("Intercept",
+                    "V"
+                    )
+)
+print(azsum_fixed[, c(1, 3, 4, 7, 9)], digits = 3)
+```
+
+```{r summarise ranef with arviz}
+azsum_ranef = az$summary(idata,
+           var_names=c( "1|Individual_kappa",
+        "V|Individual_kappa",
+        "1|Dance_kappa",
+        "kappa_1|Individual_sigma",
+        "kappa_V|Individual_sigma",
+        "kappa_1|Dance_sigma"
+                )
+)
+print(azsum_ranef[, c(1, 3, 4, 7, 9)], digits = 3)
+```
+
+# Extract predictions
+
+To look at the model estimates in context and compare the predictions with the data, we need to extract and summarise the draws.
+The posterior can be summarised by its quantiles: `quantile(x, probs = c(0.025, 0.975))` identifies the interval containing the central $95\%$ of draws for `x`.
+
+On a circular scale the bounds between which quantiles should be counted are not clearly defined, but `mod_circular` ensures data fall between $-180°$ and $180°$; since angles relative to the feeder are centred near $0°$, this boundary falls far from the bulk of the estimates.
+
+```{r set up functions to summarise draws}
+
+#A function to find the circular median in (-pi, pi)
+MedCDraws = function(x,
+                     templ = 'none', #assumes radians
+                     medn = 1) #take the 1st median
+{
+  median.circular( circular(x = mod_circular(x),
+                            template = templ)
+                                           )[medn]
+}
+#A function to report circular quantiles in degrees
+QDegDraws = function(x,
+                     probs = c(0.5, 0.025, 0.975))
+{
+  round(deg(
+    quantile(mod_circular(x), probs = probs)
+  ))
+}
+#A function to report linear quantiles
+QDraws = function(x,
+                  probs = c(0.5, 0.025, 0.975),
+                  digits = 2)
+{
+  round(quantile(x, probs = probs),
+        digits = digits)
+}
+```
+
+## Population-level predictions for each condition
+
+```{r Population predictions}
+pop_draws = with(draws_final,
+                 list(
+                   mu = list(h = Intercept,
+                             v = Intercept + V),
+                   kappa = list(h = kappa_Intercept,
+                                v = kappa_Intercept + kappa_V)
+                 )
+)
+
+pred_table = data.frame(
+  condition = c('horizontal', 'vertical'),
+  mu_median = sapply(pop_draws$mu, function(x){QDegDraws(x)[1]}),
+  mu_lower = sapply(pop_draws$mu, function(x){QDegDraws(x)[2]}),
+  mu_upper = sapply(pop_draws$mu, function(x){QDegDraws(x)[3]}),
+  kappa_median = sapply(pop_draws$kappa, function(x){QDraws(softplus(x))[1]}),
+  kappa_lower = sapply(pop_draws$kappa, function(x){QDraws(softplus(x))[2]}),
+  kappa_upper = sapply(pop_draws$kappa, function(x){QDraws(softplus(x))[3]}),
+  rho_median = sapply(pop_draws$kappa, function(x){QDraws(A1(softplus(x)), digits = 3)[1]}),
+  rho_lower = sapply(pop_draws$kappa, function(x){QDraws(A1(softplus(x)), digits = 3)[2]}),
+  rho_upper = sapply(pop_draws$kappa, function(x){QDraws(A1(softplus(x)), digits = 3)[3]}),
+  row.names = NULL
+)
+print(pred_table)
+```
+
+## Extracting individual- and dance-specific predictions
+
+This section combines population-level and group-level parameters to compute the posterior predictions for each individual in each condition, and for each dance in the condition in which it was performed.
+
+**Processing Workflow**
+
+- **Dynamic Variable Fetching**: A loop iterates through each individual (or dance) code, fetching that specific individual's random intercept and condition effect draws from the wide data frame.
+
+- **Linear Combination Reconstruction**: The population-level effects are recombined with the individual-level (and dance-level) deviations to reconstruct the specific direction ($\mu$) and consistency ($\kappa$).
+
+- **Nested Storage Architecture**: The raw vectors are assigned to a nested list (`individual_draws`) to preserve the entire distribution for downstream circular analysis.
+Concurrently, point-estimate summaries (medians) are calculated and stored in separate vectors.
+
+```{r Extract individual predictions}
+# Setup containers for summary statistics
+mu_id_h = kappa_id_h = numeric(n_ind)
+mu_id_v = kappa_id_v = numeric(n_ind)
+
+# Create one Master List for all raw draws
+# Structure: individual_draws[[i]]$mu$h
+individual_draws = vector("list", n_ind)
+
+for(i in id_tab$Individual_nr) {
+
+  calc = within(
+    draws_final,
+    {
+      # Dynamic fetch
+      m_i   = get(paste0("1_Individual_", i))
+      m_vi  = get(paste0("V_Individual_", i))
+
+      k_i   = get(paste0("kappa_1_Individual_", i))
+      k_vi  = get(paste0("kappa_V_Individual_", i))
+
+      # Calculate Raw Vectors
+      h_mu_vec = Intercept + m_i
+      h_ka_vec = kappa_Intercept + k_i
+
+      v_mu_vec = Intercept + m_i + V + m_vi
+      v_ka_vec = kappa_Intercept + k_i + kappa_V + k_vi
+    }
+  )
+
+  # Save to the Nested List
+  individual_draws[[i]] = list(
+    mu    = list(h = calc$h_mu_vec,
+                 v = calc$v_mu_vec),
+    kappa = list(h = calc$h_ka_vec,
+                 v = calc$v_ka_vec)
+  )
+
+  # Store summary stats for quick table access
+  mu_id_h[i] = MedCDraws(calc$h_mu_vec)
+  kappa_id_h[i] = median(calc$h_ka_vec)
+
+  mu_id_v[i] = MedCDraws(calc$v_mu_vec)
+  kappa_id_v[i] = median(calc$v_ka_vec)
+}
+```
+
+Each dance was performed in a single condition, so its prediction combines the population, individual and dance-level effects for that condition only.
+
+```{r Extract dance predictions}
+mu_dance = kappa_dance = numeric(n_dance)
+
+for(d in dance_tab$Dance_nr)
+{
+  i = dance_tab$Individual_nr[dance_tab$Dance_nr == d]
+  cnd = as.character(dance_tab$condition[dance_tab$Dance_nr == d])
+  cc = c(horizontal = 'h', vertical = 'v')[cnd]
+  mu_d = individual_draws[[i]]$mu[[cc]] +
+    draws_final[[paste0("1_Dance_", d)]]
+  ka_d = individual_draws[[i]]$kappa[[cc]] +
+    draws_final[[paste0("kappa_1_Dance_", d)]]
+  mu_dance[d] = MedCDraws(mu_d)
+  kappa_dance[d] = median(ka_d)
+}
+```
+
+### Visualising individual predictions
+
+This section loops through individual bees to plot observed waggle$~$runs against the model's posterior predictions for each condition.
+The raw circular data are displayed alongside density contours derived from the joint posterior distribution of $\mu$ and $\kappa$ for that individual.
+Thin arrows show the median estimated mean$~$vector for each dance, and the thick arrow shows the median estimated mean$~$vector for the individual.
+Conditions in which an individual did not dance are left blank.
+
+```{r Plot the individual predictions, fig.height = 10, fig.width = 10}
+
+par(pty = 's')
+par(mar = c(0,0,0,0),
+    mfrow = c(4,4) )
+for(i in id_tab$Individual_nr)
+{
+  indiv = as.character(id_tab$ID[id_tab$Individual_nr == i])
+  for(cnd in c('horizontal', 'vertical'))
+  {
+    cc = c(horizontal = 'h', vertical = 'v')[cnd]
+    dt_ic = subset(hd,
+                   Individual_nr == i &
+                     condition %in% cnd)
+    if(!nrow(dt_ic))
+    {
+      plot.new()
+      mtext(text = paste(indiv, '\nno', cnd, 'dances'),
+            side = 1,
+            line = -2)
+      next
+    }
+    with(dt_ic,
+    {
+      PCfun(angles = angle_deg,
+           col = cond_cols[[cnd]],
+           plot_rho = FALSE,
+           title = paste(indiv, cnd))
+      }
+    )
+    Draws2Cont(individual_draws[[i]],
+             x_string = paste0('sin(mu$', cc, ') * A1(softplus(kappa$', cc, '))'),
+             y_string = paste0('cos(mu$', cc, ') * A1(softplus(kappa$', cc, '))')
+    )
+    #dance estimates
+    for(d in unique(dt_ic$Dance_nr))
+    {
+      arrows.circular(
+        x = circular(mu_dance[d],
+                     units = 'radians',
+                     rotation = 'clock',
+                     zero = pi/2),
+        y = A1(softplus(kappa_dance[d])),
+        lwd = 0.5,
+        length = 0,
+        col = adjustcolor(cond_cols[[cnd]], alpha.f = 200/255)
+      )
+    }
+    #individual estimate
+    arrows.circular(
+      x = circular(switch(cc, h = mu_id_h[i], v = mu_id_v[i]),
+                   units = 'radians',
+                   rotation = 'clock',
+                   zero = pi/2),
+      y = A1(softplus(switch(cc, h = kappa_id_h[i], v = kappa_id_v[i]))),
+      lwd = 5,
+      length = 0.1/1.25,
+      col = adjustcolor(cond_cols[[cnd]], alpha.f = 0.8)
+    )
+  }
+}
+
+```
+
+## Plot population level predictions
+
+### Calculating empirical descriptors and paired shifts
+
+This section calculates descriptive circular metrics from the raw data and identifies individuals that danced in both conditions.
+
+**Analysis Pipeline**
+
+- **Circular Summary Extraction**: Computes mean vector lengths (`rho.circular`), maximum likelihood parameters (`MLE_est`), and Rayleigh uniformity tests (`Rayleigh_p`) for each individual in each condition using `aggregate`.
+These are saved to `mean_vectors`, alongside a linearised precision metric (`iskappa`).
+
+- **Cohort Filtering**: Individuals in `vh_ids` danced in both conditions.
+
+- **Empirical Delta Processing**: Calculates descriptive shifts in individual headings ($\Delta\mu$) from horizontal to vertical using `MuDiff`.
+
+```{r Calculate estimates of means and changes}
+
+#calculate mean vectors
+mean_vectors = aggregate(angle~ID*condition,
+                         data = hd,
+                         FUN = function(x){rho.circular(circular(x, template = 'none'))}
+)
+#correct names
+mean_vectors = within(mean_vectors,
+                      {mean_vector = angle; rm(angle)} # angle now indicates a mean vector, not an angle
+)
+#add kappa
+mle_estimates = aggregate(angle~ID*condition,
+                          data = hd,
+                          FUN = MLE_est
+)
+#Rayleigh tests
+rayleigh_tests = aggregate(angle~ID*condition,
+                          data = hd,
+                          FUN = Rayleigh_p
+                          )
+#add to the summary table and
+#calculate inverse softplus kappa
+mean_vectors = within(mean_vectors,
+                      {
+                        mu = deg(mle_estimates$angle[,'mu'])
+                        kappa = mle_estimates$angle[,'kappa']
+                        iskappa  = inv_softplus(kappa)
+                        rayleigh_p = rayleigh_tests$angle
+                      }
+)
+
+luc = sapply(u_id,
+              FUN = IndCond,
+              dta = hd,
+              vars = 'condition')
+
+#Individuals that danced in both conditions
+vh_ids = u_id[luc == 2]
+length(vh_ids)
+
+#condition specific
+h_ids = with(subset(hd,
+                    subset = condition %in% 'horizontal'),
+             unique(ID)
+             )
+v_ids = with(subset(hd,
+                    subset = condition %in% 'vertical'),
+             unique(ID)
+             )
+
+mu_diff_v = sapply(X = vh_ids,
+                   FUN = MuDiff,
+                   dta = mean_vectors,
+                   vars = 'condition',
+                   val = 'vertical',
+                   ref_val = 'horizontal')
+```
+
+### Visualising population-level circular predictions
+
+This section generates side-by-side population-level visualisations for the two conditions.
+It combines empirical mean dance directions, individual estimates, and population model predictions.
+
+**Visualisation Components**
+
+- **Empirical Baselines**: Plots individual mean directions (`mu`) from the data using `PCfun`.
+
+- **Individual Estimates**: Thin background arrows (`arrows.circular`) showing the median estimated mean$~$vector for each individual that danced in that condition.
+
+- **Posterior Uncertainty Contours**: Uses `Draws2Cont` to summarise the model's posterior distribution density for each condition.
+
+- **Population Model Estimates**: Thick foreground arrow representing the population's median estimated mean$~$vector.
+
+```{r Plot population level predictions, fig.height = 5, fig.width = 10}
+par(pty = 's')
+par(mfrow = c(1,2), mar = c(0,0,0,0))
+
+# Population mean for horizontal (Baseline: Intercept)
+with(subset(mean_vectors, condition %in% 'horizontal'), {
+  PCfun(angles = mu, col = cond_cols$horizontal, shrink = 2, plot_rho = FALSE,
+        title = 'horizontal')
+})
+
+for(i in id_tab$Individual_nr[id_tab$ID %in% h_ids]) {
+  arrows.circular(x = circular(x = mu_id_h[i], units = 'radians', rotation = 'clock', zero = pi/2),
+                  y = A1(softplus(kappa_id_h[i])), lwd = 0.25, length = 0,
+                  col = adjustcolor(cond_cols$horizontal, alpha.f = 200/255))
+}
+
+Draws2Cont(draws = draws_final,
+           x_string = 'sin(Intercept) * A1(softplus(kappa_Intercept))',
+           y_string = 'cos(Intercept) * A1(softplus(kappa_Intercept))')
+
+with(draws_final,
+     arrows.circular(x = circular(x = MedCDraws(Intercept),
+                                  units = 'radians',
+                                  rotation = 'clock', zero = pi/2),
+                     y = A1(median(softplus(kappa_Intercept))),
+                     lwd = 5, length = 0.1/1.25,
+                     col = adjustcolor(cond_cols$horizontal, alpha.f = 200/255, offset = c(rep(-0.2,3),0) )
+     )
+)
+
+# Population mean for vertical (Intercept + V)
+with(subset(mean_vectors, condition %in% 'vertical'), {
+  PCfun(angles = mu, col = cond_cols$vertical, shrink = 2, plot_rho = FALSE,
+        title = 'vertical')
+})
+
+for(i in id_tab$Individual_nr[id_tab$ID %in% v_ids]) {
+  arrows.circular(x = circular(x = mu_id_v[i], units = 'radians', rotation = 'clock', zero = pi/2),
+                  y = A1(softplus(kappa_id_v[i])), lwd = 0.25, length = 0,
+                  col = adjustcolor(cond_cols$vertical, alpha.f = 200/255))
+}
+
+Draws2Cont(draws = draws_final,
+           x_string = 'sin(Intercept + V) * A1(softplus(kappa_Intercept + kappa_V))',
+           y_string = 'cos(Intercept + V) * A1(softplus(kappa_Intercept + kappa_V))')
+
+with(draws_final,
+     arrows.circular(x = circular(x = MedCDraws(Intercept + V), units = 'radians', rotation = 'clock', zero = pi/2),
+                     y = A1(median(softplus(kappa_Intercept + kappa_V))),
+                     lwd = 5, length = 0.1/1.25, col = adjustcolor(cond_cols$vertical, alpha.f = 200/255, offset = c(rep(-0.2,3),0)))
+)
+
+print("Horizontal mean direction")
+with(draws_final, QDegDraws(Intercept))
+print("Vertical mean direction")
+with(draws_final, QDegDraws(Intercept + V))
+```
+
+### Plotting the relative population-level effect
+
+This section visualises the difference in direction between conditions and prints summary quantiles for the directional shift.
+
+**Visualisation Components**
+
+- **Empirical Differences**: Plots the observed differences in mean dance angle (vertical $-$ horizontal) for individuals that danced in both conditions, using `PCfun`.
+
+- **Individual Vectors**: median estimates of the change in direction for each of those individuals.
+
+- **Posterior Densities**: Projects posterior distribution contours for the effect of condition ($V$), scaled by the concentration of that effect across individuals (`V|Individual_kappa`), using `Draws2Cont`.
+N.B. `V|Individual_kappa` is a von Mises concentration estimated directly (LogNormal prior), so it is not transformed by `softplus`.
+
+- **Population Shift**: Overlays a thick arrow representing the estimated median population-level shift.
+
+- **Turn Size Quantiles**: Computes and prints the median and $95\%$ credible intervals for the directional shift and for individual turning magnitudes.
+
+```{r Plot relative pop level effects, fig.height = 5, fig.width = 5}
+par(pty = 's')
+par(mfrow = c(1,1), mar = c(0,0,0,0))
+
+# --- Effect of vertical comb ---
+PCfun(angles = unlist(mu_diff_v),
+      col = 'gray40',
+      shrink = 2,
+      plot_rho = FALSE,
+      title = 'vertical - horizontal')
+
+for(i in id_tab$Individual_nr[id_tab$ID %in% vh_ids]) {
+  arrows.circular(x = circular(x = mu_id_v[i] - mu_id_h[i],
+                               units = 'radians',
+                               rotation = 'clock',
+                               zero = pi/2),
+                  y = A1(softplus(kappa_id_v[i])),
+                  lwd = 0.5,
+                  length = 0,
+                  col = adjustcolor('gray60', alpha.f = 200/255))
+}
+#scale by alignment _across_ individuals
+Draws2Cont(draws = draws_final,
+           x_string = 'sin(V) * A1(`V|Individual_kappa`)',
+           y_string = 'cos(V) * A1(`V|Individual_kappa`)')
+
+with(draws_final,
+     arrows.circular(x = circular(x = MedCDraws(V),
+                                  units = 'radians',
+                                  rotation = 'clock',
+                                  zero = pi/2),
+     y = A1(median(`V|Individual_kappa`)),
+     lwd = 5,
+     length = 0.1/1.25,
+     col = adjustcolor('gray40', alpha.f = 200/255, offset = c(rep(-0.2,3),0))
+     )
+)
+print("Effect of vertical comb on direction")
+with(draws_final, QDegDraws(V))
+
+#individual turns: for individuals that danced in both conditions
+vh_nr = id_tab$Individual_nr[id_tab$ID %in% vh_ids]
+turn_mat = sapply(vh_nr,
+                  function(i)
+                  {
+                    abs(mod_circular(individual_draws[[i]]$mu$v -
+                                       individual_draws[[i]]$mu$h))
+                  }
+                  )
+print("Effect of vertical comb on mean individual turn size")
+QDraws(deg(rowMeans(turn_mat)), digits = 0)
+```
+
+### Visualising consistency predictions
+
+This section visualises the posterior distributions for concentration parameters ($\kappa$) and prints summary quantiles for concentration and estimated mean vector lengths (`A1(kappa)`).
+
+**Visualisation & Summary Components**
+
+- **Consistency ($\kappa$)**: Plots a $1 \times 2$ grid of vertical histograms (`VertHist`) showing the posterior density of estimated concentration parameters for each condition.
+
+- **Quantile Reporting**: Computes median estimates and $95\%$ credible intervals for each condition.
+
+```{r Kappa predictions}
+#plot kappa
+par(mfrow = c(1,2))
+kappa_lim = with(draws_final,
+                 range(softplus(c(kappa_Intercept, kappa_Intercept + kappa_V))))
+
+with(draws_final,
+     VertHist(data = softplus(kappa_Intercept),
+              main = '\nhorizontal',
+              ylab = 'kappa',
+              ylim = kappa_lim,
+              col = adjustcolor(cond_cols$horizontal, alpha.f = 100/255),
+              cex.axis = 0.7))
+
+with(draws_final,
+     VertHist(data = softplus(kappa_Intercept + kappa_V),
+              main = '\nvertical',
+              ylab = 'kappa',
+              ylim = kappa_lim,
+              col = adjustcolor(cond_cols$vertical, alpha.f = 100/255),
+              cex.axis = 0.7))
+
+print("Horizontal kappa")
+with(draws_final, QDraws(softplus(kappa_Intercept)))
+print("Vertical kappa")
+with(draws_final, QDraws(softplus(kappa_Intercept + kappa_V)))
+```
+
+### Changes in consistency
+
+- **Contrast Effects ($\Delta\kappa$)**: Plots the change in concentration from horizontal to vertical, with a dashed baseline marker (`abline`) at no change.
+
+```{r Kappa effects}
+# Plot difference in kappa
+par(mfrow = c(1,2))
+
+# Effect of vertical comb (vertical - horizontal)
+with(draws_final,
+     VertHist(data = softplus(kappa_Intercept + kappa_V) - softplus(kappa_Intercept),
+              main = '\nDiff: kappa',
+              ylab = 'diff kappa',
+              col = adjustcolor('gray40', alpha.f = 100/255),
+              cex.axis = 0.7))
+abline(h = 0, lty = 2)
+
+with(draws_final,
+     VertHist(data = A1(softplus(kappa_Intercept + kappa_V)) - A1(softplus(kappa_Intercept)),
+              main = '\nDiff: mean vector',
+              ylab = 'diff mean vector length',
+              col = adjustcolor('gray40', alpha.f = 100/255),
+              cex.axis = 0.7))
+abline(h = 0, lty = 2)
+
+#Report effects
+#effect on kappa
+print("effect of vertical comb on kappa")
+with(draws_final,
+     QDraws(softplus(kappa_Intercept + kappa_V) -
+              softplus(kappa_Intercept))
+)
+#effect on mean vector
+print("effect of vertical comb on mean vector length")
+with(draws_final,
+     QDraws(A1(softplus(kappa_Intercept + kappa_V)) -
+              A1(softplus(kappa_Intercept)),
+            digits = 3)
+)
+#probability of a decrease in consistency
+print("probability that vertical dances are less consistent")
+with(draws_final,
+     round(mean(kappa_V < 0), digits = 3)
+)
+```
+
+### Visualising the concentration across individuals and dances
+
+To interpret how similarly individuals and dances were oriented, we extract the posterior distributions for the group-level concentrations ($\kappa_\mu$).
+These were estimated directly as von Mises concentrations (LogNormal priors), so no transformation is needed.
+
+**Analysis Workflow**
+
+- **Scale Transformation**: Since some effects may be extremely consistent ($\kappa_{\mu} \to \infty$), they are plotted on a $\log_{10}$ scale.
+
+- **Custom Axis Mapping**: To maintain intuitive interpretation, custom logarithmic axis ticks (`lticks`) are overlaid with the original linear values as text labels.
+
+- **Contrast Profiles**: "Horizontal" (`1|Individual_kappa`) is the concentration of individual mean directions around the population mean for horizontal dances, the "vertical effect" (`V|Individual_kappa`) is the concentration of individual changes in direction from horizontal to vertical, and "dances" (`1|Dance_kappa`) is the concentration of dance mean directions around their individual's mean direction.
+
+```{r Kappamu effects}
+#plot kappa
+par(mfrow = c(1,3))
+
+lticks = c(1,3,5, 1:10*10, 200, 300)
+
+#"Horizontal" (Intercept)
+with(draws_final,
+     VertHist(data = log10(`1|Individual_kappa`),
+              main = '\nhorizontal',
+              ylab = 'kappamu',
+              ylim = log10(c(1, 300)),
+              col = adjustcolor(cond_cols$horizontal, alpha.f = 100/255),
+              axes = FALSE,
+              cex.axis = 0.7))
+axis(1)
+axis(2, at = log10(lticks), labels = lticks)
+
+#Vertical effect
+with(draws_final,
+     VertHist(data = log10(`V|Individual_kappa`),
+              main = '\nvertical effect',
+              ylab = 'kappamu',
+              ylim = log10(c(1, 300)),
+              col = adjustcolor(cond_cols$vertical, alpha.f = 100/255),
+              axes = FALSE,
+              cex.axis = 0.7))
+axis(1)
+axis(2, at = log10(lticks), labels = lticks)
+
+#Dances within individuals
+with(draws_final,
+     VertHist(data = log10(`1|Dance_kappa`),
+              main = '\ndances',
+              ylab = 'kappamu',
+              ylim = log10(c(1, 300)),
+              col = adjustcolor('gray50', alpha.f = 100/255),
+              axes = FALSE,
+              cex.axis = 0.7))
+axis(1)
+axis(2, at = log10(lticks), labels = lticks)
+
+print("Concentration of individuals (horizontal)")
+with(draws_final, QDraws(`1|Individual_kappa`))
+print("Concentration of individual vertical effects")
+with(draws_final, QDraws(`V|Individual_kappa`))
+print("Concentration of dances within individuals")
+with(draws_final, QDraws(`1|Dance_kappa`))
+```
+
+### Estimate the posterior distribution of concentration across individuals
+
+To evaluate the consistency of individual directional preferences within each condition, we estimate the population's concentration parameter, $\kappa_{\mu}$, using a von$~$Mises distribution.
+This converts our nested list of individual MCMC draws into $Draw \times Individual$ matrices for each condition: horizontal (`h`) and vertical (`v`).
+Only individuals that danced in each condition are included.
+
+**Analysis Workflow**
+
+- **Maximum Likelihood Estimation (MLE)**: The model only explicitly estimated across-individual concentration for the horizontal condition and for the *condition difference*, so across-individual concentration *within* the vertical condition needs to be estimated from the model's posterior draws.
+For each MCMC draw (row), we compute the Maximum Likelihood Estimate for $\kappa$ using `mle.vonmises`.
+
+- **Posterior Profiling**: By applying this MLE estimation across every draw, we reconstruct the full posterior distribution for $\kappa_{\mu}$ under each condition.
+
+```{r Kappamu conditions}
+
+# ==========================================
+# MATRIX RECONSTRUCTION & HELPER FUNCTIONS
+# ==========================================
+
+# Helper function to extract a specific condition across selected individuals
+# Builds a Draw-by-Individual matrix
+get_mu_matrix = function(
+  cond,
+  inds
+) {
+  # sapply combines the resulting vectors into columns of a single matrix
+  sapply(inds, function(i) individual_draws[[i]]$mu[[cond]])
+}
+
+# Extract matrices for each condition, for individuals observed in that condition
+mu_mat_h = get_mu_matrix("h", id_tab$Individual_nr[id_tab$ID %in% h_ids]) # Horizontal
+mu_mat_v = get_mu_matrix("v", id_tab$Individual_nr[id_tab$ID %in% v_ids]) # Vertical
+
+
+# ==========================================
+# MAXIMUM LIKELIHOOD ESTIMATION (MLE)
+# ==========================================
+
+# Function to calculate the MLE kappa (concentration parameter) for a single draw row
+calc_kappa_mle = function(
+  mu_row
+) {
+  # mle.vonmises returns a complex list object; we extract only the numeric $kappa estimate
+  as.numeric(mle.vonmises(circular(mu_row, units='radians'))$kappa)
+}
+
+# Apply the MLE function across all rows (MARGIN = 1) of each matrix
+post_kappamu_h = apply(mu_mat_h, 1, calc_kappa_mle)
+post_kappamu_v = apply(mu_mat_v, 1, calc_kappa_mle)
+
+
+# ==========================================
+# VISUALIZATION (VERTICAL HISTOGRAMS)
+# ==========================================
+par(mfrow = c(1,3))
+kappamu_lim = range(c(post_kappamu_h, post_kappamu_v))
+
+VertHist(data = post_kappamu_h,
+         main = '\nhorizontal', ylab = 'kappamu (MLE)',
+         ylim = kappamu_lim, col = adjustcolor(cond_cols$horizontal, alpha.f = 100/255),
+         cex.axis = 0.7)
+
+VertHist(data = post_kappamu_v,
+         main = '\nvertical', ylab = 'kappamu (MLE)',
+         ylim = kappamu_lim, col = adjustcolor(cond_cols$vertical, alpha.f = 100/255),
+         cex.axis = 0.7)
+
+diff_kappamu = post_kappamu_v - post_kappamu_h
+VertHist(data = diff_kappamu,
+         main = '\nDiff: vertical', ylab = 'diff kappamu',
+         col = adjustcolor('gray40', alpha.f = 100/255),
+         cex.axis = 0.7)
+abline(h = 0, lty = 2)
+
+print("Effect of vertical comb on concentration across individuals")
+QDraws(diff_kappamu, digits = 3)
+print("Effect of vertical comb on mean vector length across individuals")
+QDraws(A1(post_kappamu_v) - A1(post_kappamu_h), digits = 3)
+```
+
+# Appendix
+
+## Plot individual means
+
+Print all individual effects in this model.
+
+### Mean angle
+
+```{r Inspect individual means}
+plt_panels = 9
+for(id in 0:(ceiling(n_ind/plt_panels)-1))
+{
+  # Calculate the specific range of indices for this page
+  start_idx = (id * plt_panels) + 1
+  end_idx   = min((id + 1) * plt_panels, n_ind)
+plt = mcmc_trace(draws_final,
+           pars = paste0("1_Individual_",
+                         start_idx:end_idx),
+           facet_args = list(ncol = 3,
+                             nrow = 3),
+           transformations = unwrap_circular_deg
+           )
+print(plt)
+}
+```
+
+```{r Inspect individual vertical effects}
+plt_panels = 9
+for(id in 0:(ceiling(n_ind/plt_panels)-1))
+{
+  start_idx = (id * plt_panels) + 1
+  end_idx   = min((id + 1) * plt_panels, n_ind)
+plt = mcmc_trace(draws_final,
+           pars = paste0("V_Individual_",
+                         start_idx:end_idx),
+           facet_args = list(ncol = 3,
+                             nrow = 3),
+           transformations = unwrap_circular_deg
+           )
+print(plt)
+}
+```
+
+```{r Inspect dance means}
+plt_panels = 9
+for(id in 0:(ceiling(n_dance/plt_panels)-1))
+{
+  start_idx = (id * plt_panels) + 1
+  end_idx   = min((id + 1) * plt_panels, n_dance)
+plt = mcmc_trace(draws_final,
+           pars = paste0("1_Dance_",
+                         start_idx:end_idx),
+           facet_args = list(ncol = 3,
+                             nrow = 3),
+           transformations = unwrap_circular_deg
+           )
+print(plt)
+}
+```
+
+### Concentration
+
+```{r Inspect individual kappas}
+plt_panels = 9
+for(id in 0:(ceiling(n_ind/plt_panels)-1))
+{
+  start_idx = (id * plt_panels) + 1
+  end_idx   = min((id + 1) * plt_panels, n_ind)
+  plt = mcmc_trace(draws_final,
+             pars = paste0("kappa_1_Individual_", start_idx:end_idx),
+             facet_args = list(ncol = 3, nrow = 3)
+             )
+  print(plt)
+}
+```
+
+```{r Inspect individual kappas for vertical effect}
+plt_panels = 9
+for(id in 0:(ceiling(n_ind/plt_panels)-1))
+{
+  start_idx = (id * plt_panels) + 1
+  end_idx   = min((id + 1) * plt_panels, n_ind)
+  plt = mcmc_trace(draws_final,
+             pars = paste0("kappa_V_Individual_", start_idx:end_idx),
+             facet_args = list(ncol = 3, nrow = 3)
+             )
+  print(plt)
+}
+```
+
+```{r Inspect dance kappas}
+plt_panels = 9
+for(id in 0:(ceiling(n_dance/plt_panels)-1))
+{
+  start_idx = (id * plt_panels) + 1
+  end_idx   = min((id + 1) * plt_panels, n_dance)
+  plt = mcmc_trace(draws_final,
+             pars = paste0("kappa_1_Dance_", start_idx:end_idx),
+             facet_args = list(ncol = 3, nrow = 3)
+             )
+  print(plt)
+}
+```
+
+## Session Information
+
+<details>
+
+<summary>Click to expand session metadata</summary>
+
+```{r session-info, echo=FALSE}
+
+sessionInfo()
+```
+
+</details>
