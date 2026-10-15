@@ -1,0 +1,323 @@
+---
+title: "Dance Pair: Bee 66b"
+author: "James Foster"
+date: "`r Sys.Date()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    toc: true
+    fig_caption: true
+editor_options:
+  markdown:
+    wrap: sentence
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Details
+
+**DESCRIPTION**
+
+Extract two consecutive dances by the same bee (66b), one under antisolar skylight and one under solar skylight, fit a circular GLM for the change in waggle-run direction and concentration between them, and plot the model predictions.
+
+**INPUTS**
+
+`HS_functions.R`, `0Data/hs_dance_reorg.csv`
+
+**OUTPUTS**
+
+Plotted data, model predictions and change in mean direction.
+
+**REFERENCES**
+
+**modelling methods**
+
+- Graving JM, Sayin S, Costelloe BR, Goldshtein A & Foster JJ. Unwrapping circular statistics with Bayesian multilevel models.
+
+- Bürkner P-C (2017) `brms`: An R Package for Bayesian Multilevel Models Using Stan.
+  *Journal of Statistical Software* 80(1), 1-28. <doi:10.18637/jss.v080.i01>
+
+# Motivation
+
+Bee 66b danced under antisolar skylight at 12:55 and under solar skylight at 13:04 on 2025-01-27, with the sun at a high elevation (\~76°).
+If the bee orients its dance using the same skylight cues in both conditions, the mean direction of waggle runs relative to the feeder ($\mu$) should be similar.
+Here we estimate the change in $\mu$ and in concentration ($\kappa$) between these two dances, with the antisolar dance as the reference (Intercept), so that the effect of solar skylight corresponds to S (solar − antisolar) in `HS_circGLMM_summary_4cond.Rmd`.
+
+# Set up workspace
+
+Before fitting the model, we need to load the appropriate functions.
+Make sure that the `circular`, `cmdstanr` and `brms` packages are installed, and (on Windows) that you have installed the latest version of [Rtools](https://cran.r-project.org/bin/windows/Rtools/).
+
+```{r Load functions and packages}
+source('HS_functions.R')
+require(cmdstanr) #fit Stan models
+require(posterior) #process MCMC draws
+```
+
+Set up some colours for plotting.
+Conditions use the colour codes from `HS_ExploratoryPlots.Rmd`.
+
+```{r Set up plot colours}
+#condition colours, as in HS_ExploratoryPlots.Rmd
+cond_cols = list(
+  vertical = 'darkred',
+  horizontal = 'darkgreen',
+  tilted = 'seagreen',
+  antisolar = 'cyan4',
+  solar = 'blue4',
+  zenith = "skyblue3"
+)
+col_sd = '#E74A29' #colour for model estimates of mean angle
+```
+
+# Prepare data
+
+Load the dance data, reorganised as `hs_dance_reorg.csv`, and select the two dances.
+
+```{r Load data}
+#Dance angle data
+hd = read.table(file = '0Data/hs_dance_reorg.csv',
+                header = T,
+                sep  = ',')
+#the two dances to compare
+pair_dances = c("66b_2025-01-27 11-56-04_12:55:00_20250127",
+                "66b_2025-01-27 12-03-34_13:04:00_20250127")
+hd_pair = subset(hd,
+                 ID_d %in% pair_dances)
+#conditions, reference first
+pair_conds = c('antisolar', 'solar')
+hd_pair = within(hd_pair,
+                 {
+                   condition = factor(condition,
+                                      levels = pair_conds)
+                   angle_deg = deg(feeder_angle) # in degrees, for plotting
+                 }
+)
+#waggle runs per dance and condition
+with(hd_pair, table(ID_d, condition))
+#solar position during each dance
+aggregate(cbind(sun_az, sun_el) ~ condition,
+          data = hd_pair,
+          FUN = mean)
+```
+
+Each dance was performed in a single condition, so comparing conditions here also compares the two dances.
+
+```{r Plot the raw data}
+par(pty = 's')
+par(mar = c(0,0,0,0))
+par(mfrow = c(1,2))
+
+for(cnd in pair_conds)
+{
+  PCfun(subset(hd_pair, condition == cnd)$angle_deg,
+        col = cond_cols[[cnd]],
+        shrink = 1.25,
+        title = cnd,
+        titleline = -1)
+}
+```
+
+## Fit the model
+
+In order to fit a circular model using the circular modulo and softplus links, we need to define a custom family.
+This family requires two `Stan` functions.
+One executes the circular modulo transform and the other uses this transform on estimates of $\mu$ before calculating the log-probability of data $y$ using the von Mises log-probability-density function (LPDF).
+Since this applies the circular modulo link function, we set the link function for $\mu$ to "identity", and the link function for $\kappa$ to "softplus" ($\log(\exp(x)+1))$), which ensures estimates of $\kappa$ remain strictly positive.
+
+```{r Set up the circular model custom family}
+#set up required Stan functions
+#circular modulo in Stan code
+modulo_circular_fun = stanvar(scode = "
+  real modulo_circular(real y) {
+    return fmod(y + pi(), 2*pi()) - pi();
+  }
+",
+                           block = 'functions')
+
+#custom likelihood function using the shifted modulo link
+stan_unwrap_fun = stanvar(scode = "
+  real unwrap_von_mises_lpdf(real y, real mu, real kappa) {
+    return von_mises_lpdf(y | modulo_circular(mu), kappa);
+  }
+  real unwrap_von_mises_rng(real mu, real kappa) {
+    return von_mises_rng( modulo_circular(mu) , kappa);
+  }
+",
+                          block = 'functions')
+#define the custom family
+unwrap_von_mises = custom_family(
+  name = "unwrap_von_mises",
+  dpars = c("mu",
+            "kappa"),
+  links = c('identity',#N.B. the link function is defined via the LPD function
+            "softplus"),
+  lb = c(-pi,#lower bound of mu should be -pi
+         0),
+  ub = c(pi,#upper bound of mu should be pi
+         NA),
+  type = "real",#takes continuous response data
+)
+
+```
+
+We combine the waggle-run angles relative to the feeder (in radians) from both dances into one vector $y$, aligned with the vector $x$, which specifies whether the dance was performed under solar skylight (yes: $1$, no: $0$).
+
+The priors follow `HS_circGLMM_fit_4cond.ipynb`: circular uniform for the $\mu$ `Intercept` (approximated as von Mises with $\kappa = 10^{-6}$), von Mises ($\mu = 0$, $\kappa = 0.5$) for the change in $\mu$, $\mathcal{N}(\mathrm{softplus}^{-1}(3), 3)$ for the $\kappa$ `Intercept` and $\mathcal{N}(0, 1)$ for the change in $\kappa$.
+Using the `unwrap_von_mises` LPDF for the $\mu$ priors keeps them periodic, so a change of nearly 180° in either direction is not penalised, as it would be by a $\mathcal{N}(0,\pi/2)$ prior on the linear scale.
+
+*N.B.* By default `brms` centres predictors before fitting and then calculates the `Intercept` as `Intercept_centred - mean(x) * b_x`.
+For $\mu$ this breaks the circular equivalence of estimates: when `b_x` wraps around the circle by $2\pi$, the `Intercept` shifts by $2\pi$ `mean(x)`, so chains that converge to the same angles cannot be unwrapped to agree.
+We therefore specify the $\mu$ intercept explicitly (`y ~ 0 + Intercept + x`), which fits it without centring.
+
+```{r Fit the solar vs antisolar model}
+dt_pair = with(hd_pair,
+               data.frame(y = as.numeric(feeder_angle), #radians, -pi to pi
+                          x = as.numeric(condition == 'solar')
+                          )
+               )
+
+#formula for a circular model with predictor x
+#mu intercept fitted without centring x, so that estimates wrap consistently
+form_pair = bf(y~0 + Intercept + x,
+               kappa~x,
+               family = unwrap_von_mises)
+
+#priors following HS_circGLMM_fit_4cond.ipynb
+prior_pair = prior('unwrap_von_mises(0, 1e-6)', class = 'b', coef = 'Intercept') + #circular uniform
+        prior('unwrap_von_mises(0, 0.5)', class = 'b', coef = 'x') + #weak bias towards no change
+        prior('normal(2.95, 3)', class = 'Intercept', dpar = 'kappa') + #mean at inverse_softplus(3)
+        prior('normal(0, 1)', class = 'b', dpar = 'kappa')
+
+
+model_pair =  brm(formula = form_pair,
+               data = dt_pair,
+               family = unwrap_von_mises,
+               prior = prior_pair, # the kappa and mu priors
+               stanvars = stan_unwrap_fun + modulo_circular_fun,
+               silent = 2,
+               seed = 20250127, #date of the dances
+               backend = 'cmdstan'
+)
+summary(model_pair)
+```
+
+Estimates for the `Intercept` and the coefficient `b_x` (solar change in angle) wrap around the circle in different chains, so their `Rhat` values on the linear scale are high.
+If we unwrap these estimates, we can confirm that they converged towards the same angle, even if they moved in different directions.
+
+```{r Unwrap the intercept estimates}
+plot(model_pair)
+#unwrap estimates and convert to degrees
+plot(x = model_pair,
+     variable = c('b_Intercept','b_x'),
+     transform = unwrap_circular_deg)
+#print the rhat for unwrapped estimates
+UnwrapRhats(model_pair,
+            variable = c('b_Intercept','b_x'),
+            regex = FALSE
+            )
+```
+
+## Inspect predictions
+
+To inspect the model predictions, we need to apply the model formula to the estimates.
+For the antisolar dance we use estimates of `b_Intercept` ($\mu$) and `b_kappa_Intercept`, and for the solar dance `b_Intercept` + `b_x` (effect of solar skylight on $\mu$) and `b_kappa_Intercept` + `b_kappa_x` (effect of solar skylight on $\kappa$).
+*N.B.* `Intercept_kappa` is the intercept for centred `x` (the average dance), so we use the uncentred `b_kappa_Intercept` instead.
+The thick arrow in each condition's colour shows the observed mean vector, and the thin arrow shows the median model estimate.
+
+```{r Inspect predictions for solar vs antisolar}
+draws_pair = as_draws_df(model_pair)
+#model terms for mu and kappa in each condition
+pair_mu = list(antisolar = 'b_Intercept',
+               solar = 'b_Intercept+b_x')
+pair_kappa = list(antisolar = 'b_kappa_Intercept',
+                  solar = 'b_kappa_Intercept+b_kappa_x')
+
+par(pty = 's')
+par(mar = c(0,0,0,0),
+    mfrow = c(1,3))
+for(cnd in pair_conds)
+{
+  cd_cnd = circular(x = subset(hd_pair, condition == cnd)$angle_deg,
+                    units = 'degrees',
+                    rotation = 'clock',
+                    zero = pi/2)
+  PCfun(cd_cnd,
+        col = cond_cols[[cnd]],
+        shrink = 1.25,
+        title = cnd,
+        titleline = -1,
+        plot_rho = FALSE)
+  Draws2Cont(draws_pair,
+             x_string = paste0('sin(', pair_mu[[cnd]], ')*A1(softplus(', pair_kappa[[cnd]], '))'),
+             y_string = paste0('cos(', pair_mu[[cnd]], ')*A1(softplus(', pair_kappa[[cnd]], '))')
+  )
+  #observed mean vector
+  arrows.circular(x = mean.circular(cd_cnd),
+                  y = rho.circular(cd_cnd),
+                  col = cond_cols[[cnd]],
+                  lwd = 5,
+                  length = 0.1/1.25
+  )
+  #median model estimate
+  with(draws_pair,
+       arrows.circular(x = median.circular(x =
+                               circular(mod_circular(eval(str2lang(pair_mu[[cnd]]))), #wrap to (-pi, pi) first
+                                    rotation = 'clock',
+                                    zero = pi/2)
+                                    ),
+                       y = A1(softplus(x = median(x = eval(str2lang(pair_kappa[[cnd]]))))),
+                       lwd = 2,
+                       length = 0.1/1.25,
+                       col = adjustcolor(col_sd, alpha.f = 200/255))
+  )
+}
+
+with(draws_pair, paste0(mean(mod_circular(b_x) > 0)*100, '%') ) #estimates suggesting a rightwards (clockwise) turn under solar skylight
+
+with(draws_pair, paste0( round(
+                        deg(median.circular(x =
+                             circular(mod_circular(b_x), #wrap to (-pi, pi) first
+                                  template = 'none')
+                                  )
+                            ) ),
+                            '°')
+     ) #median change in mean angle
+with(draws_pair,
+     VertHist(data = Mod360.180(deg(b_x)),
+              main = 'change in mean angle',
+              ylim = c(-180, 180),
+              col = adjustcolor(col_sd, alpha.f = 100/255),
+              axes = F,
+              cex.axis = 0.7))
+abline(h = 0,
+       col = 'gray',
+       lwd = 7)
+axis(1)
+axis(2, at = -4:4*45)
+
+```
+
+The change in concentration can be inspected in the same way, by converting estimates for each condition to the $\kappa$ scale using the `softplus` transform.
+
+```{r Change in concentration}
+with(draws_pair,
+     {
+       kappa_antisolar = softplus(b_kappa_Intercept)
+       kappa_solar = softplus(b_kappa_Intercept + b_kappa_x)
+       print(
+         rbind(antisolar = quantile(kappa_antisolar, probs = c(0.025, 0.5, 0.975)),
+               solar = quantile(kappa_solar, probs = c(0.025, 0.5, 0.975)),
+               `solar - antisolar` = quantile(kappa_solar - kappa_antisolar,
+                                              probs = c(0.025, 0.5, 0.975))
+               ),
+         digits = 3
+       )
+       paste0(mean(kappa_solar < kappa_antisolar)*100, '%') #estimates suggesting lower concentration under solar skylight
+     }
+)
+```
