@@ -12,4 +12,5 @@ netcdf4>=1.6.5,<1.7.0
 h5py>=3.10.0,<4.0.0
 git+https://github.com/jgraving/unwrap.git@3e701175b665a12f4a0dcda6643aef9ea4b7aecf
 pyarrow==24.0.0
-ipykernel
+ipython==9.13.0
+ipykernel==6.29.5
