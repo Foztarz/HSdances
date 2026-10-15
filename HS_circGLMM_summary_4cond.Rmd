@@ -86,12 +86,52 @@ Each dance was performed in a single condition, so dances (nested within individ
 To extract these models, we need to load the appropriate functions.
 Make sure that the `circular`, `reticulate`, `arrow`, `posterior` and `bayesplot` packages are installed.
 Here we use the `HS-env` conda environment created for `HS_circGLMM_fit_4cond.ipynb`, so that `arviz` can read the saved model.
+If it does not exist yet, create it from a terminal with conda available (e.g. Anaconda Prompt):
+
+`conda create -n HS-env python=3.12 -c conda-forge -y`
+
+`conda activate HS-env`
+
+`pip install -r nutpie_unwrap_requirements.txt`
+
+`reticulate` cannot always find the conda binary (e.g. RStudio on Windows with an "All Users" install in `C:/ProgramData`), so we search the usual install locations.
+To use a different conda binary or environment, set `RETICULATE_CONDA` or `HS_CONDA_ENV` in your `~/.Renviron`.
 
 ```{r Load functions and packages}
 source('HS_functions.R')
 require(reticulate) #run python from R
-use_condaenv("HS-env",
-             required = TRUE)
+#conda environment in which the model was fitted
+hs_env = Sys.getenv('HS_CONDA_ENV', unset = 'HS-env')
+#find the conda binary, unless the user has specified one
+if(!nzchar(Sys.getenv('RETICULATE_CONDA')))
+{
+  conda_roots = c(Sys.getenv(c('USERPROFILE', 'LOCALAPPDATA', 'ProgramData', 'HOME')),
+                  '/opt', '/usr/local')
+  conda_dists = c('anaconda3', 'miniconda3', 'miniforge3', 'mambaforge')
+  conda_bins = if(.Platform$OS.type == 'windows'){'Scripts/conda.exe'}else{'bin/conda'}
+  conda_candidates = c(Sys.getenv('CONDA_EXE'), #set inside an activated conda shell
+                       Sys.which('conda'), #on the PATH
+                       file.path(rep(conda_roots[nzchar(conda_roots)],
+                                     each = length(conda_dists)),
+                                 conda_dists,
+                                 conda_bins)
+                       )
+  conda_found = Filter(function(x){nzchar(x) & file.exists(x)},
+                       conda_candidates)
+  if(length(conda_found))
+  {
+    Sys.setenv(RETICULATE_CONDA = normalizePath(conda_found[1], winslash = '/'))
+  }
+}
+#use the environment, with instructions if it cannot be found
+tryCatch(use_condaenv(hs_env, required = TRUE),
+         error = function(e)
+         {
+           stop('Could not use conda environment "', hs_env, '": ', conditionMessage(e),
+                '\nCreate it (see above), or set RETICULATE_CONDA to the path of your conda binary.',
+                call. = FALSE)
+         }
+         )
 reticulate::py_config()
 #load .feather files (readable in R and Python)
 require(arrow)
