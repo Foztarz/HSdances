@@ -1,0 +1,803 @@
+---
+title: "Circular GLMM Summary: Dance States"
+author: "James Foster"
+date: "`r Sys.Date()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    toc: true
+    fig_caption: true
+params:
+  elevation: "low"
+  direction_prior: "bounded_vm"
+  model: "three_states_condition"
+  model_dir: "2Results/state_models"
+editor_options:
+  markdown:
+    wrap: sentence
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Details
+
+**DESCRIPTION**
+
+Load and plot the state-switching circular GLMM fitted in `HS_circGLMM_states.ipynb`, which assigns each dance to a forward, reversed or axial (bimodal) state and models the probability of each state as a function of condition.
+The analysis to summarise is set by `params`: the solar elevation (`r params$elevation`), the direction prior (`r params$direction_prior`) and the model (`r params$model`), read from `params$model_dir`.
+
+**INPUTS**
+
+`HS_functions.R`, `0Data/hs_dance_states_<elevation>.feather`, `2Results/state_models/HS_states_<elevation>_<direction_prior>_*.nc`
+
+**OUTPUTS**
+
+Plotted estimates, predictions and contrasts.
+
+**REFERENCES**
+
+**modelling methods**
+
+- Graving JM, Sayin S, Costelloe BR, Goldshtein A & Foster JJ. Unwrapping circular statistics with Bayesian multilevel models.
+
+- Abril-Pla, O., Andreani, V., Carroll, C., Dong, L., Fonnesbeck, C. J., Kochurov, M., Kumar, R., Lao, J., Luhmann, C. C., Martin, O. A., et al. (2023).
+  `PyMC`: a modern, and comprehensive probabilistic programming framework in Python.
+  *PeerJ Computer Science* 9, e1516.
+
+- Seyboldt, A., Carlson, E. L., & Carpenter, B.
+  (2026).
+  Preconditioning Hamiltonian Monte Carlo by minimizing Fisher Divergence.
+  *arXiv* preprint arXiv:2603.18845.
+
+- Yao, Y., Vehtari, A., & Gelman, A. (2022).
+  Stacking for non-mixing Bayesian computations: the curse and blessing of multimodal posteriors.
+  *Journal of Machine Learning Research* 23(79), 1-45.
+
+# Motivation
+
+On a horizontal comb, and under some skylight conditions, honeybee dances are not always oriented in a single direction relative to the feeder: some dances point away from the feeder (reversed), and others alternate between two opposite directions (axial).
+Rather than describing these by a continuous mixture weight, each dance is assigned to one of three latent states:
+
+| state | density of each waggle run |
+|---|---|
+| forward | $\mathcal{M}(\theta \mid \mu_d, \kappa_d)$ |
+| reversed | $\mathcal{M}(\theta \mid \mu_d + \pi, \kappa_d)$ |
+| axial | $w\,\mathcal{M}(\theta \mid \mu_d, \kappa_d) + (1-w)\,\mathcal{M}(\theta \mid \mu_d + \pi, \kappa_d)$, $0.25 < w < 0.75$ |
+
+The probability of each state is modelled with a multinomial logit (forward as reference), with condition effects and individual random effects:
+
+$\log(\pi_\text{reversed} / \pi_\text{forward}) \sim$ condition + (1 |Individual)
+
+$\log(\pi_\text{axial} / \pi_\text{forward}) \sim$ condition + (1 |Individual)
+
+The forward direction of each dance, $\mu_d$, combines a direction for its condition with individual and dance offsets, and the concentration, $\kappa_d$, has condition effects and individual and dance random effects.
+Condition effects are coded as successive differences, vertical → horizontal → antisolar → solar (H, A, S), as in `HS_circGLMM_fit_4cond.ipynb`.
+To keep reversals from being described by 180° changes in direction, condition directions and dance offsets are bounded (see `HS_circGLMM_states.ipynb`), and individual offsets have a strongly concentrated von Mises prior ($\kappa_u \sim \text{LogNormal}(\log 30, 0.6)$).
+Chains that settled in poor local optima (mean log posterior more than 20 below the best chain) were dropped before saving.
+
+# Set up workspace
+
+To extract these models, we need to load the appropriate functions.
+Make sure that the `circular`, `reticulate`, `arrow`, `posterior` and `bayesplot` packages are installed.
+Here we use the `HS-env` conda environment created for `HS_circGLMM_fit_4cond.ipynb`, so that `arviz` can read the saved model.
+If it does not exist yet, create it from a terminal with conda available (e.g. Anaconda Prompt):
+
+`conda create -n HS-env python=3.12 -c conda-forge -y`
+
+`conda activate HS-env`
+
+`pip install -r nutpie_unwrap_requirements.txt`
+
+`reticulate` cannot always find the conda binary (e.g. RStudio on Windows with an "All Users" install in `C:/ProgramData`), so we search the usual install locations.
+To use a different conda binary or environment, set `RETICULATE_CONDA` or `HS_CONDA_ENV` in your `~/.Renviron`.
+
+```{r Load functions and packages}
+source('HS_functions.R')
+require(reticulate) #run python from R
+#conda environment in which the model was fitted
+hs_env = Sys.getenv('HS_CONDA_ENV', unset = 'HS-env')
+#find the conda binary, unless the user has specified one
+if(!nzchar(Sys.getenv('RETICULATE_CONDA')))
+{
+  conda_roots = c(Sys.getenv(c('USERPROFILE', 'LOCALAPPDATA', 'ProgramData', 'HOME')),
+                  '/opt', '/usr/local')
+  conda_dists = c('anaconda3', 'miniconda3', 'miniforge3', 'mambaforge')
+  conda_bins = if(.Platform$OS.type == 'windows'){'Scripts/conda.exe'}else{'bin/conda'}
+  conda_candidates = c(Sys.getenv('CONDA_EXE'), #set inside an activated conda shell
+                       Sys.which('conda'), #on the PATH
+                       file.path(rep(conda_roots[nzchar(conda_roots)],
+                                     each = length(conda_dists)),
+                                 conda_dists,
+                                 conda_bins)
+                       )
+  conda_found = Filter(function(x){nzchar(x) & file.exists(x)},
+                       conda_candidates)
+  if(length(conda_found))
+  {
+    Sys.setenv(RETICULATE_CONDA = normalizePath(conda_found[1], winslash = '/'))
+  }
+}
+#use the environment, with instructions if it cannot be found
+tryCatch(use_condaenv(hs_env, required = TRUE),
+         error = function(e)
+         {
+           stop('Could not use conda environment "', hs_env, '": ', conditionMessage(e),
+                '\nCreate it (see above), or set RETICULATE_CONDA to the path of your conda binary.',
+                call. = FALSE)
+         }
+         )
+reticulate::py_config()
+#load .feather files (readable in R and Python)
+require(arrow)
+#process and plot MCMC data
+require(posterior)
+require(bayesplot)
+options(posterior.num_args = list(sigfig = 3))#for ease of reading
+
+#condition colours, as in HS_ExploratoryPlots.Rmd
+cond_cols = list(
+  vertical = 'darkred',
+  horizontal = 'darkgreen',
+  antisolar = 'cyan4',
+  solar = 'blue4'
+)
+#state colours
+state_cols = list(
+  forward = '#1b7837',
+  reversed = '#762a83',
+  axial = '#e08214'
+)
+states = names(state_cols)
+#successive model effects for each condition
+cond_effs_all = list(vertical = character(0),
+                     horizontal = c('H'),
+                     antisolar = c('H', 'A'),
+                     solar = c('H', 'A', 'S'))
+```
+
+# Prepare data
+
+Load the data in the exact form used to fit the model, saved by `HS_circGLMM_states.ipynb` as a `.feather` file (readable in both `R` and `Python`).
+Dances and individuals are numbered from 0 in the order of their labels, matching the model's coordinates.
+
+```{r Load data}
+hd = read_feather(file = file.path('0Data',
+                                   paste0('hs_dance_states_', params$elevation, '.feather')))
+hd = as.data.frame(hd)
+hd = within(hd,
+            {
+              condition = droplevels(factor(as.character(condition),
+                                            levels = names(cond_cols)))
+              angle_deg = deg(angle) # in degrees, for plotting
+            }
+)
+conds = levels(hd$condition)
+cond_effs = cond_effs_all[conds]
+effect_names = unique(unlist(cond_effs))
+#one row per dance (0-based codes, as in the model)
+dance_tab = unique(hd[, c('Dance', 'Dance_label', 'Individual', 'Individual_label', 'condition')])
+dance_tab = dance_tab[order(dance_tab$Dance), ]
+id_tab = unique(hd[, c('Individual', 'Individual_label')])
+id_tab = id_tab[order(id_tab$Individual), ]
+n_dance = nrow(dance_tab)
+n_ind = nrow(id_tab)
+#which individuals danced in which conditions (rows ordered by Individual)
+id_cond = sapply(conds,
+                 function(cnd)
+                 {
+                   id_tab$Individual %in% subset(hd, condition %in% cnd)$Individual
+                 }
+                 )
+print(paste('Elevation:', params$elevation, '; conditions:', paste(conds, collapse = ', ')))
+#runs, dances and individuals per condition
+aggregate(cbind(runs = angle) ~ condition, data = hd, FUN = length)
+with(unique(hd[, c('Individual_label', 'Dance_label', 'condition')]),
+     table(Individual_label, condition))
+```
+
+# Load model and extract draws
+
+This loads draws from the fitted model's posterior distribution, using the `reticulate` package to read the `Python` `arviz` file.
+Each parameter is extracted as an array of samples $\times$ levels (with draws running sequentially within each chain), and population-level parameters are collected into a `draws_df` for trace plots.
+
+```{r Load the model}
+az = reticulate::import("arviz")
+model_file = file.path(params$model_dir,
+                       paste0('HS_states_', params$elevation, '_', params$direction_prior, '_',
+                              params$model, '.nc'))
+print(model_file)
+idata = az$from_netcdf(model_file)
+post = idata$posterior
+post_vars = unlist(reticulate::iterate(post$data_vars$keys()))
+n_chains = as.integer(post$sizes['chain'])
+n_draws = as.integer(post$sizes['draw'])
+n_samp = n_chains * n_draws
+
+#Extract a parameter as samples (x levels (x levels)), draws within chains
+Draws = function(name)
+{
+  vals = reticulate::py_get_item(post, name)$values
+  d = dim(vals)
+  if(length(d) == 2)
+  {
+    as.vector(t(vals))
+  }else if(length(d) == 3)
+  {
+    matrix(aperm(vals, c(2, 1, 3)), ncol = d[3])
+  }else
+  {
+    array(aperm(vals, c(2, 1, 3, 4)), dim = c(n_samp, d[3], d[4]))
+  }
+}
+#Coordinates of a dimension
+Coords = function(dim_name)
+{
+  as.character(reticulate::py_get_item(post$coords, dim_name)$values)
+}
+model_states = Coords('state')
+stopifnot(all(Coords('dance') == dance_tab$Dance_label),
+          all(Coords('condition') == conds))
+
+#population-level parameters
+mu_cond = Draws('mu_condition') # samples x conditions
+colnames(mu_cond) = conds
+kappa0 = Draws('kappa_Intercept')
+kappa_eff = if(length(effect_names)){Draws('kappa_effect')}else{NULL}
+state_int = lapply(setNames(model_states[-1], model_states[-1]),
+                   function(s){Draws(paste0(s, '_Intercept'))})
+state_eff = lapply(setNames(model_states[-1], model_states[-1]),
+                   function(s)
+                   {
+                     nm = paste0(s, '_effect')
+                     if(nm %in% post_vars){m = Draws(nm); colnames(m) = effect_names; m}else{NULL}
+                   })
+w_axial = if('w_axial' %in% post_vars){Draws('w_axial')}else{rep(0.5, n_samp)}
+#group-level parameters
+mu_dance = Draws('mu') # samples x dances: forward direction of each dance
+kappa_dance = Draws('kappa') # samples x dances
+p_state = Draws('p_state') # samples x dances x states: posterior state probabilities
+ind_state_z = lapply(setNames(model_states[-1], model_states[-1]),
+                     function(s)
+                     {
+                       sweep(Draws(paste0(s, '_Individual_z')), 1,
+                             Draws(paste0(s, '_Individual_sigma')), '*')
+                     })
+#individual direction offsets: von Mises or non-centred Normal, depending on the direction prior
+mu_ind = if('mu_Individual' %in% post_vars)
+{
+  Draws('mu_Individual')
+}else
+{
+  sweep(Draws('mu_Individual_z'), 1, Draws('mu_Individual_sigma'), '*')
+}
+bounded_dirs = grepl('bounded', params$direction_prior)
+
+#trace-plot data frame of population-level parameters
+draws_list = list(.chain = rep(1:n_chains, each = n_draws),
+                  .iteration = rep(1:n_draws, times = n_chains))
+for(cnd in conds){draws_list[[paste0('mu_', cnd)]] = mu_cond[, cnd]}
+draws_list$kappa_Intercept = kappa0
+for(e in effect_names){draws_list[[paste0('kappa_', e)]] = kappa_eff[, which(effect_names == e)]}
+for(s in names(state_int))
+{
+  draws_list[[paste0(s, '_Intercept')]] = state_int[[s]]
+  for(e in effect_names){if(!is.null(state_eff[[s]])){draws_list[[paste0(s, '_', e)]] = state_eff[[s]][, e]}}
+}
+draws_list$w_axial = w_axial
+for(nm in c('mu_Individual_sigma', 'mu_Dance_sigma', 'kappa_Individual_sigma', 'kappa_Dance_sigma',
+            'reversed_Individual_sigma', 'axial_Individual_sigma'))
+{
+  if(nm %in% post_vars){draws_list[[nm]] = Draws(nm)}
+}
+draws_final = posterior::as_draws_df(as.data.frame(draws_list, check.names = FALSE))
+```
+
+# Inspect model estimates
+
+```{r Inspect main effects}
+mcmc_trace(draws_final,
+           pars = paste0('mu_', conds),
+           transformations = unwrap_circular_deg)
+mcmc_trace(draws_final,
+           pars = grep('^(reversed|axial)_(Intercept|[HAS])$', names(draws_final), value = TRUE))
+mcmc_trace(draws_final,
+           pars = c(grep('^kappa_(Intercept|[HAS])$', names(draws_final), value = TRUE), 'w_axial'))
+mcmc_trace(draws_final,
+           pars = grep('_sigma$', names(draws_final), value = TRUE))
+```
+
+Check the $\hat{R}$ values (convergence is indicated by $\hat{R}<1.01$) and the number of chains kept after screening.
+
+```{r summarise with arviz}
+print(paste('Chains kept after screening:', n_chains,
+            '; divergent transitions:',
+            sum(reticulate::py_get_item(idata$sample_stats, 'diverging')$values)))
+main_vars = intersect(c('mu_condition', 'kappa_Intercept', 'kappa_effect',
+                        'reversed_Intercept', 'reversed_effect', 'axial_Intercept', 'axial_effect',
+                        'w_axial', 'mu_Individual_sigma', 'mu_Dance_sigma',
+                        'kappa_Individual_sigma', 'kappa_Dance_sigma',
+                        'reversed_Individual_sigma', 'axial_Individual_sigma'),
+                      post_vars)
+azsum = az$summary(idata, var_names = as.list(main_vars), circ_var_names = list('mu_condition'))
+print(azsum[, c(1, 3, 4, 7, 9)], digits = 3)
+```
+
+# Extract predictions
+
+The posterior is summarised by its median and central $95\%$ interval.
+For circular quantities, draws are centred on their circular median before calculating quantiles, so that the boundary falls far from the bulk of the estimates.
+
+```{r set up functions to summarise draws}
+#A function to find the circular median in (-pi, pi)
+MedCDraws = function(x,
+                     templ = 'none', #assumes radians
+                     medn = 1) #take the 1st median
+{
+  median.circular( circular(x = mod_circular(x),
+                            template = templ)
+                                           )[medn]
+}
+#A function to report circular quantiles in degrees, centred on the circular median
+QDegDraws = function(x,
+                     probs = c(0.5, 0.025, 0.975))
+{
+  mx = as.numeric(MedCDraws(x))
+  round(deg(
+    quantile(mod_circular(x - mx), probs = probs) + mx
+  ))
+}
+#A function to report linear quantiles
+QDraws = function(x,
+                  probs = c(0.5, 0.025, 0.975),
+                  digits = 2)
+{
+  round(quantile(x, probs = probs),
+        digits = digits)
+}
+#Bounded offset, as in the model (B*tanh(x/B))
+Bounded = function(x, bound = pi/3)
+{
+  bound * tanh(x / bound)
+}
+#Condition design: which successive effects apply to each condition
+XCond = function(cnd){as.numeric(effect_names %in% cond_effs[[cnd]])}
+#Population concentration for a condition
+KappaCond = function(cnd)
+{
+  eta = kappa0
+  if(length(effect_names)){eta = eta + kappa_eff %*% XCond(cnd)}
+  softplus(as.vector(eta))
+}
+#State probabilities for a condition, optionally for an individual: samples x states
+StateProbs = function(cnd, i = NULL)
+{
+  eta = sapply(model_states,
+               function(s)
+               {
+                 if(s == 'forward'){return(rep(0, n_samp))}
+                 e = state_int[[s]]
+                 if(!is.null(state_eff[[s]])){e = e + as.vector(state_eff[[s]] %*% XCond(cnd))}
+                 if(!is.null(i)){e = e + ind_state_z[[s]][, i + 1]}
+                 e
+               })
+  exp(eta - apply(eta, 1, max)) / rowSums(exp(eta - apply(eta, 1, max)))
+}
+#Expected weight of the forward direction (mu1) in a dance, given its state probabilities:
+#forward dances put all runs at mu1, axial dances a proportion w, reversed dances none
+WForward = function(ps)
+{
+  ps[, 'forward'] + if('axial' %in% colnames(ps)){w_axial * ps[, 'axial']}else{0}
+}
+```
+
+## Population-level predictions for each condition
+
+For a typical individual (individual effects at zero): the forward direction ($\mu_1$, with the reverse direction $\mu_2 = \mu_1 + 180°$), concentration ($\kappa$, and mean vector length $\rho = A_1(\kappa)$), the probability of each state, and the expected proportion of waggle runs towards $\mu_1$, $w_1 = \pi_\text{forward} + w\,\pi_\text{axial}$.
+
+```{r Population predictions}
+pop_draws = lapply(setNames(conds, conds),
+                   function(cnd)
+                   {
+                     ps = StateProbs(cnd)
+                     colnames(ps) = model_states
+                     list(mu = mu_cond[, cnd],
+                          kappa = KappaCond(cnd),
+                          p = ps,
+                          w1 = WForward(ps))
+                   })
+
+pred_table = do.call(rbind,
+                     lapply(conds,
+                            function(cnd)
+                            {
+                              pd = pop_draws[[cnd]]
+                              mq = QDegDraws(pd$mu)
+                              kq = QDraws(pd$kappa)
+                              rq = QDraws(A1(pd$kappa), digits = 3)
+                              data.frame(condition = cnd,
+                                         mu_median = mq[1], mu_lower = mq[2], mu_upper = mq[3],
+                                         kappa_median = kq[1], kappa_lower = kq[2], kappa_upper = kq[3],
+                                         rho_median = rq[1], rho_lower = rq[2], rho_upper = rq[3],
+                                         row.names = NULL)
+                            }
+                     )
+)
+print(pred_table)
+
+state_table = do.call(rbind,
+                      lapply(conds,
+                             function(cnd)
+                             {
+                               do.call(rbind,
+                                       lapply(c(model_states, 'w1'),
+                                              function(s)
+                                              {
+                                                x = if(s == 'w1'){pop_draws[[cnd]]$w1}else{pop_draws[[cnd]]$p[, s]}
+                                                q = QDraws(x, digits = 3)
+                                                data.frame(condition = cnd, quantity = s,
+                                                           median = q[1], lower = q[2], upper = q[3],
+                                                           row.names = NULL)
+                                              }))
+                             }))
+print(state_table)
+print(paste('Axial weight w (proportion of runs towards mu1 in axial dances):',
+            paste(QDraws(w_axial, digits = 3), collapse = ', ')))
+```
+
+## State probabilities by condition
+
+Bars show the population-level probability of each state in each condition (median and $95\%$ interval, typical individual); points show the mean posterior state probability across the observed dances in that condition.
+
+```{r State probabilities, fig.width = 8, fig.height = 5}
+#mean posterior state probability across observed dances
+p_state_mean = apply(p_state, c(2, 3), mean) # dances x states
+colnames(p_state_mean) = model_states
+par(mar = c(4, 4, 3, 1))
+plot(NULL, xlim = c(0.5, length(conds) + 0.5), ylim = c(0, 1), xaxt = 'n',
+     xlab = '', ylab = 'Probability of state',
+     main = paste('Dance states,', params$elevation, 'solar elevation'))
+axis(1, at = seq_along(conds), labels = conds)
+width = 0.25
+for(j in seq_along(model_states))
+{
+  s = model_states[j]
+  xs = seq_along(conds) + (j - (length(model_states) + 1) / 2) * width
+  q = sapply(conds, function(cnd){quantile(pop_draws[[cnd]]$p[, s], c(0.5, 0.025, 0.975))})
+  rect(xs - width / 2, 0, xs + width / 2, q[1, ], col = adjustcolor(state_cols[[s]], alpha.f = 0.8), border = NA)
+  arrows(xs, q[2, ], xs, q[3, ], angle = 90, code = 3, length = 0.03)
+  obs = sapply(conds, function(cnd){mean(p_state_mean[dance_tab$condition == cnd, s])})
+  points(xs, obs, pch = 21, bg = 'white')
+}
+legend('topright', legend = model_states, fill = unlist(state_cols[model_states]), border = NA, bty = 'n')
+```
+
+## Effects of condition on states, direction and concentration
+
+Contrasts between successive conditions (the model effects H, A, S) and between each condition and vertical, for a typical individual.
+$P(>0)$ is the posterior probability that the quantity increases.
+
+```{r Condition contrasts}
+contrasts = c(lapply(conds[-1], function(cnd){c(cnd, 'vertical')}),
+              if(length(conds) > 2){lapply(3:length(conds), function(k){c(conds[k], conds[k - 1])})})
+names(contrasts) = sapply(contrasts, paste, collapse = ' - ')
+contrast_table = do.call(rbind,
+                         lapply(names(contrasts),
+                                function(cname)
+                                {
+                                  cn = contrasts[[cname]]
+                                  p1 = pop_draws[[cn[1]]]; p0 = pop_draws[[cn[2]]]
+                                  rows = lapply(c(model_states, 'w1', 'kappa', 'mu (°)'),
+                                                function(q)
+                                                {
+                                                  d = switch(q,
+                                                             w1 = p1$w1 - p0$w1,
+                                                             kappa = p1$kappa - p0$kappa,
+                                                             `mu (°)` = mod_circular(p1$mu - p0$mu),
+                                                             p1$p[, q] - p0$p[, q])
+                                                  qq = if(q == 'mu (°)'){QDegDraws(d)}else{QDraws(d, digits = 3)}
+                                                  data.frame(contrast = cname, quantity = q,
+                                                             median = qq[1], lower = qq[2], upper = qq[3],
+                                                             P_greater_0 = round(mean(d > 0), 3),
+                                                             row.names = NULL)
+                                                })
+                                  do.call(rbind, rows)
+                                }))
+print(contrast_table)
+```
+
+```{r Contrast plots, fig.width = 10, fig.height = 4}
+par(mfrow = c(1, length(model_states)), mar = c(5, 4, 3, 1))
+for(s in model_states)
+{
+  dl = lapply(contrasts, function(cn){pop_draws[[cn[1]]]$p[, s] - pop_draws[[cn[2]]]$p[, s]})
+  plot(NULL, xlim = c(0.5, length(dl) + 0.5), ylim = c(-1, 1), xaxt = 'n',
+       xlab = '', ylab = paste('Change in P(', s, ')'), main = s)
+  axis(1, at = seq_along(dl), labels = gsub(' - ', '\n- ', names(dl)), cex.axis = 0.7, padj = 0.5)
+  abline(h = 0, lty = 2)
+  for(k in seq_along(dl))
+  {
+    hst = hist(dl[[k]], breaks = seq(-1, 1, by = 0.02), plot = FALSE)
+    dens = 0.4 * hst$density / max(hst$density)
+    rect(k - dens, head(hst$breaks, -1), k + dens, hst$breaks[-1],
+         col = adjustcolor(cond_cols[[contrasts[[k]][1]]], alpha.f = 0.5), border = NA)
+  }
+}
+```
+
+## Extracting individual- and dance-specific predictions
+
+**Individuals**: for each individual in each condition in which it danced, the forward direction ($\mu_c$ plus the individual's offset) and state probabilities (including the individual's random effects on the state logits), from which the expected proportion of runs towards $\mu_1$ ($w_1$) is calculated.
+
+**Dances**: each dance's forward direction and concentration from the model, and its *posterior* state probabilities given its own waggle runs.
+
+```{r Extract individual and dance predictions}
+mu_id = kappa_id = w1_id = matrix(NA, nrow = n_ind, ncol = length(conds), dimnames = list(NULL, conds))
+individual_draws = vector('list', n_ind)
+for(i in id_tab$Individual)
+{
+  individual_draws[[i + 1]] = list(mu = list(), kappa = list(), w1 = list())
+  for(cnd in conds[id_cond[id_tab$Individual == i, ]])
+  {
+    off = mu_ind[, i + 1]
+    mu_i = mu_cond[, cnd] + if(bounded_dirs){Bounded(off)}else{off}
+    ps = StateProbs(cnd, i = i)
+    colnames(ps) = model_states
+    w1 = WForward(ps)
+    kp = KappaCond(cnd)
+    individual_draws[[i + 1]]$mu[[cnd]] = mu_i
+    individual_draws[[i + 1]]$kappa[[cnd]] = kp
+    individual_draws[[i + 1]]$w1[[cnd]] = w1
+    mu_id[i + 1, cnd] = MedCDraws(mu_i)
+    kappa_id[i + 1, cnd] = median(kp)
+    w1_id[i + 1, cnd] = median(w1)
+  }
+}
+
+#dances: forward direction, concentration and posterior expected weight towards mu1
+mu_dance_med = apply(mu_dance, 2, function(x){as.numeric(MedCDraws(x))})
+kappa_dance_med = apply(kappa_dance, 2, median)
+ps_d = p_state_mean
+w1_dance = ps_d[, 'forward'] + if('axial' %in% model_states){median(w_axial) * ps_d[, 'axial']}else{0}
+dance_tab = within(dance_tab,
+                   {
+                     state_map = model_states[apply(ps_d, 1, which.max)]
+                     state_prob = apply(ps_d, 1, max)
+                   })
+print(table(dance_tab$condition, dance_tab$state_map))
+print(paste('Dances assigned with probability < 0.8:', sum(dance_tab$state_prob < 0.8), 'of', n_dance))
+```
+
+### Visualising individual predictions
+
+For each bee in each condition: the observed waggle runs, density contours for the population-level mean vector of each mode in that condition (forward mode in red-yellow, reverse mode in blue, opacity scaled by its weight), thin lines for each dance's two modes, and arrows for the individual's two modes.
+Each mode is drawn with length $A_1(\kappa)$ and line width scaled by its weight ($w_1$ and $1 - w_1$), following `PlotMV_circMLE`, with a minimum width of 0.5 so that minor modes remain visible; opacity is also scaled by weight (minimum 25%), so that many overlapping minor modes do not look like a major one.
+
+```{r Mode plotting functions}
+#Plot separate mean vectors for each mode (mu1 and mu1 + pi), each of length A1(kappa),
+#with line width scaled by the weight of that mode (as in PlotMV_circMLE: lwd = 5 * weight1)
+ModeArrows = function(mu, kappa, w1, col, lwd = 5, lwd_min = 0.5, length = 0, alpha = 200/255)
+{
+  mus = c(mu, mod_circular(mu + pi))
+  ws = c(w1, 1 - w1)
+  for(md in 1:2)
+  {
+    arrows.circular(
+      x = circular(mus[md], units = 'radians', rotation = 'clock', zero = pi/2),
+      y = A1(kappa),
+      lwd = max(lwd_min, lwd * ws[md]),
+      length = length,
+      #fade minor modes too, so that overlapping thin lines do not look like a major mode
+      col = adjustcolor(col, alpha.f = alpha * max(0.25, ws[md]))
+    )
+  }
+}
+#Posterior density contours for the mean vector of each mode, opacity scaled by its weight
+ModeContours = function(mu, kappa, w1)
+{
+  dl = list(mu = mu, kappa = kappa)
+  w_med = median(w1)
+  Draws2Cont(dl, alpha = 200/255 * w_med,
+             x_string = 'sin(mu) * A1(kappa)', y_string = 'cos(mu) * A1(kappa)')
+  Draws2Cont(dl, palette = 'Blues 3', alpha = 200/255 * (1 - w_med),
+             x_string = '-sin(mu) * A1(kappa)', y_string = '-cos(mu) * A1(kappa)')
+}
+```
+
+```{r Plot the individual predictions, fig.height = 10, fig.width = 10}
+par(pty = 's')
+par(mar = c(0,0,0,0),
+    mfrow = c(4,4) )
+for(i in id_tab$Individual)
+{
+  indiv = as.character(id_tab$Individual_label[id_tab$Individual == i])
+  for(cnd in conds)
+  {
+    dt_ic = subset(hd, Individual == i & condition %in% cnd)
+    if(!nrow(dt_ic))
+    {
+      plot.new()
+      mtext(text = paste(indiv, '\nno', cnd, 'dances'), side = 1, line = -2)
+      next
+    }
+    PCfun(angles = dt_ic$angle_deg, col = cond_cols[[cnd]], plot_rho = FALSE,
+          title = paste(indiv, cnd))
+    ModeContours(individual_draws[[i + 1]]$mu[[cnd]],
+                 individual_draws[[i + 1]]$kappa[[cnd]],
+                 individual_draws[[i + 1]]$w1[[cnd]])
+    for(d in unique(dt_ic$Dance))
+    {
+      ModeArrows(mu_dance_med[d + 1], kappa_dance_med[d + 1], w1_dance[d + 1],
+                 col = cond_cols[[cnd]], lwd = 2)
+    }
+    ModeArrows(mu_id[i + 1, cnd], kappa_id[i + 1, cnd], w1_id[i + 1, cnd],
+               col = cond_cols[[cnd]], lwd = 5, length = 0.1/1.25, alpha = 0.8)
+  }
+}
+```
+
+## Plot population level predictions
+
+For each condition: all waggle runs, each individual's two modes (thin lines), posterior density contours for the population's two modes, and the population's median modes (thick arrows).
+
+```{r Plot population level predictions, fig.height = 5, fig.width = 10}
+par(pty = 's')
+par(mfrow = c(1, length(conds)), mar = c(0,0,0,0))
+for(cnd in conds)
+{
+  PCfun(angles = subset(hd, condition %in% cnd)$angle_deg, col = cond_cols[[cnd]],
+        shrink = 1.5, plot_rho = FALSE, title = cnd)
+  for(i in id_tab$Individual[id_cond[, cnd]])
+  {
+    ModeArrows(mu_id[i + 1, cnd], kappa_id[i + 1, cnd], w1_id[i + 1, cnd],
+               col = cond_cols[[cnd]], lwd = 2)
+  }
+  pd = pop_draws[[cnd]]
+  ModeContours(pd$mu, pd$kappa, pd$w1)
+  ModeArrows(MedCDraws(pd$mu), median(pd$kappa), median(pd$w1),
+             col = adjustcolor(cond_cols[[cnd]], offset = c(rep(-0.2, 3), 0)),
+             lwd = 5, length = 0.1/1.25)
+}
+for(cnd in conds)
+{
+  print(paste(cnd, 'forward direction (mu1), degrees:', paste(QDegDraws(pop_draws[[cnd]]$mu), collapse = ', ')))
+}
+```
+
+## Dance-level state assignments
+
+Each dance's posterior state probabilities against its unimodal ($R_1$) and axial ($R_2$) mean resultant lengths.
+Colours mix the state colours in proportion to the posterior probability of each state, and point size scales with the number of waggle runs.
+
+```{r Dance states, fig.width = 10, fig.height = 4}
+dance_stats = do.call(rbind,
+                      lapply(split(hd$angle, hd$Dance),
+                             function(a)
+                             {
+                               data.frame(R1 = Mod(mean(exp(1i * a))),
+                                          R2 = Mod(mean(exp(2i * a))),
+                                          n_runs = length(a))
+                             }))
+dance_tab = cbind(dance_tab, dance_stats[as.character(dance_tab$Dance), ])
+par(mfrow = c(1, length(conds)), mar = c(4, 4, 3, 1), pty = 's')
+for(cnd in conds)
+{
+  sel = dance_tab$condition == cnd
+  rgb_mix = ps_d[sel, , drop = FALSE] %*% t(col2rgb(unlist(state_cols[model_states]))) / 255
+  plot(dance_tab$R1[sel], dance_tab$R2[sel], xlim = c(0, 1), ylim = c(0, 1),
+       pch = 21, bg = rgb(rgb_mix[, 1], rgb_mix[, 2], rgb_mix[, 3], alpha = 0.8),
+       cex = 0.6 + 0.08 * dance_tab$n_runs[sel],
+       xlab = expression(R[1] ~ '(unimodal)'), ylab = expression(R[2] ~ '(axial)'), main = cnd)
+  abline(a = 0, b = 1, col = 'gray')
+}
+legend('bottomright', legend = model_states, pt.bg = unlist(state_cols[model_states]), pch = 21, bty = 'n')
+```
+
+## Concentration
+
+Posterior concentration ($\kappa$) of waggle runs around each mode, for a typical dance in each condition.
+
+```{r Kappa predictions, fig.width = 8}
+par(mfrow = c(1, length(conds)))
+kappa_lim = range(unlist(lapply(pop_draws, `[[`, 'kappa')))
+for(cnd in conds)
+{
+  VertHist(data = pop_draws[[cnd]]$kappa,
+           main = paste0('\n', cnd),
+           ylab = 'kappa',
+           ylim = kappa_lim,
+           col = adjustcolor(cond_cols[[cnd]], alpha.f = 100/255),
+           cex.axis = 0.7)
+}
+print(pred_table[, c('condition', 'kappa_median', 'kappa_lower', 'kappa_upper', 'rho_median')])
+```
+
+## Variation across individuals and dances
+
+Standard deviations of individual and dance offsets in direction (in degrees; for von Mises individual offsets, the circular SD, $\sqrt{-2 \log A_1(\kappa_u)}$), and of individual and dance effects on $\kappa$ and on the state logits.
+
+```{r Random effect scales, fig.width = 10}
+sigma_params = grep('_sigma$', names(draws_final), value = TRUE)
+par(mfrow = c(1, length(sigma_params)))
+for(sp in sigma_params)
+{
+  is_mu = grepl('^mu_', sp)
+  VertHist(data = if(is_mu){deg(draws_final[[sp]])}else{draws_final[[sp]]},
+           main = paste0('\n', gsub('_sigma', '', sp)),
+           ylab = if(is_mu){'SD (°)'}else{'SD (link scale)'},
+           col = adjustcolor(if(grepl('Dance', sp)){'gray50'}else{'gray20'}, alpha.f = 100/255),
+           cex.axis = 0.7)
+}
+sigma_table = do.call(rbind,
+                      lapply(sigma_params,
+                             function(sp)
+                             {
+                               is_mu = grepl('^mu_', sp)
+                               q = if(is_mu){QDraws(deg(draws_final[[sp]]), digits = 1)}else{QDraws(draws_final[[sp]])}
+                               data.frame(parameter = sp, units = if(is_mu){'degrees'}else{'link scale'},
+                                          median = q[1], lower = q[2], upper = q[3], row.names = NULL)
+                             }))
+print(sigma_table)
+```
+
+# Model comparison
+
+Leave-one-dance-out cross-validation (PSIS-LOO) for the models fitted in `HS_circGLMM_states.ipynb` with the same direction prior.
+Each dance has its own direction, concentration and state, so leaving one out changes the posterior substantially and PSIS is often unreliable (many dances with Pareto $\hat{k} > 0.7$): treat this as provisional, pending K-fold cross-validation.
+
+```{r Model comparison}
+model_labels = c(two_states = 'Forward/reversed, condition-dependent',
+                 three_states_same = 'Forward/reversed/axial, same in all conditions',
+                 three_states_condition = 'Forward/reversed/axial, condition-dependent')
+model_files = file.path(params$model_dir,
+                        paste0('HS_states_', params$elevation, '_', params$direction_prior, '_',
+                               names(model_labels), '.nc'))
+names(model_files) = model_labels
+model_files = model_files[file.exists(model_files)]
+az_py = reticulate::import("arviz", convert = FALSE)
+loo_list = lapply(model_files, function(f){az_py$loo(az_py$from_netcdf(f))})
+comparison = reticulate::py_to_r(az_py$compare(reticulate::dict(loo_list), ic = 'loo'))
+print(comparison[, c('rank', 'elpd_loo', 'p_loo', 'elpd_diff', 'weight', 'se', 'dse', 'warning')],
+      digits = 3)
+for(nm in names(loo_list))
+{
+  k = reticulate::py_to_r(loo_list[[nm]]$pareto_k$values)
+  print(paste0(nm, ': ', sum(k > 0.7), ' of ', length(k), ' dances with Pareto k > 0.7'))
+}
+```
+
+# Appendix
+
+## Individual direction offsets
+
+```{r Inspect individual offsets}
+ind_df = posterior::as_draws_df(
+  data.frame(.chain = rep(1:n_chains, each = n_draws),
+             .iteration = rep(1:n_draws, times = n_chains),
+             setNames(as.data.frame(mu_ind), paste0('mu_', id_tab$Individual_label)),
+             check.names = FALSE))
+plt_panels = 9
+for(id in 0:(ceiling(n_ind/plt_panels) - 1))
+{
+  idx = (id * plt_panels + 1):min((id + 1) * plt_panels, n_ind)
+  print(mcmc_trace(ind_df, pars = paste0('mu_', id_tab$Individual_label[idx]),
+                   facet_args = list(ncol = 3, nrow = 3),
+                   transformations = function(x){deg(x)}))
+}
+```
+
+## Session Information
+
+<details>
+
+<summary>Click to expand session metadata</summary>
+
+```{r session-info, echo=FALSE}
+
+sessionInfo()
+```
+
+</details>

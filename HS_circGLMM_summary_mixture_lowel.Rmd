@@ -1,0 +1,942 @@
+---
+title: "Circular GLMM Summary: Bimodal Dances at Low Solar Elevations"
+author: "James Foster"
+date: "`r Sys.Date()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    toc: true
+    fig_caption: true
+params:
+  model_file: "2Results/unwrap_models/HS_lowel_VH_2_axial_wH.nc"
+  model_dir: "2Results/unwrap_models"
+editor_options:
+  markdown:
+    wrap: sentence
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Details
+
+**DESCRIPTION**
+
+Load and plot the circular mixture GLMM fitted in `HS_circGLMM_mixture_lowel.ipynb` to describe waggle-run angles relative to the feeder for dances in the vertical and horizontal conditions at low solar elevations (`sun_el` $< 15°$, the hour before sunset).
+The model to summarise is set by `params$model_file` (by default, the condition-dependent mixture, `2Results/unwrap_models/HS_lowel_VH_2_axial_wH.nc`), and the models to compare are found in `params$model_dir`.
+
+**INPUTS**
+
+`HS_functions.R`, `0Data/hs_dance_reorg.csv`, `0Data/hs_dance_lowel_VH.feather`, `2Results/unwrap_models/HS_lowel_VH_*.nc`
+
+**OUTPUTS**
+
+Plotted estimates, predictions and contrasts.
+
+**REFERENCES**
+
+**modelling methods**
+
+- Sayin S, ...
+  Graving JM, $\textit{et~al}$.(2025) The behavioral mechanisms governing collective motion in swarming locusts.
+  $\textit{Science}$ 387,995-1000 [DOI:10.1126/science.adq7832](https://doi.org/10.1126/science.adq7832)
+
+- Graving JM, Sayin S, Costelloe BR, Goldshtein A & Foster JJ. Unwrapping circular statistics with Bayesian multilevel models.
+
+- Capretto, T., Piho, C., Kumar, R., Westfall, J., Yarkoni, T., & Martin, O.
+  (2022) `Bambi`: A simple interface for fitting Bayesian linear models in Python. *Journal of Statistical Software* 103(15), 1-29. <doi:10.18637/jss.v103.i15>
+
+- Seyboldt, A., Carlson, E. L., & Carpenter, B.
+  (2026).
+  Preconditioning Hamiltonian Monte Carlo by minimizing Fisher Divergence.
+  *arXiv* preprint arXiv:2603.18845.
+
+- Stephens, M. (2000).
+  Dealing with label switching in mixture models.
+  *Journal of the Royal Statistical Society B* 62(4), 795-809.
+
+# Motivation
+
+At low solar elevations, dances on a horizontal comb are often bimodal, with waggle runs in two roughly opposite directions, whereas dances on a vertical comb remain unimodal.
+To describe these dances, each waggle run is modelled as a mixture of two von Mises distributions with opposite means and a shared concentration:
+
+$$
+f(\theta \mid \mu, \kappa, w) = w\,\mathcal{M}(\theta \mid \mu, \kappa) + (1-w)\,\mathcal{M}(\theta \mid \mu + \pi, \kappa)
+$$
+
+where $w$ is the proportion of waggle runs in the primary mode ($\mu$): $w = 1$ is unimodal, $w = 0.5$ is axially symmetric, and $w = 0$ is unimodal but reversed.
+Bimodality is summarised by $B = 1 - |2w - 1|$, which is 0 for a unimodal distribution (in either direction) and 1 for an axially symmetric one.
+
+The model fitted was:
+
+$\mu \sim$ H + (1 |Individual) + (1 |Dance)
+
+$\kappa \sim$ H + (1 |Individual) + (1 |Dance)
+
+$w \sim$ H + (1 |Individual) + (1 |Dance)
+
+where the vertical condition is the reference (Intercept) and H is the effect of horizontal orientation (horizontal − vertical).
+Each dance was performed in a single condition, so dances (nested within individuals) have random intercepts only.
+
+Two features of the priors make the two modes identifiable:
+
+- individual and dance offsets in $\mu$ are Normal (unwrapped), so that a reversed dance is explained by a low $w$, rather than a 180° shift in $\mu$;
+- $\text{logit}(w) > 0$ for the reference (vertical) condition, so that the primary mode is the one favoured by vertical dances.
+
+As a check, draws in which a condition's mean direction is closer to 180° than 0° are relabelled (swapping $\mu \to \mu + \pi$ and $w \to 1 - w$), as in `HS_circGLMM_mixture_lowel.ipynb`; this should rarely be needed.
+
+# Set up workspace
+
+To extract these models, we need to load the appropriate functions.
+Make sure that the `circular`, `reticulate`, `arrow`, `posterior` and `bayesplot` packages are installed.
+Here we use the `HS-env` conda environment created for `HS_circGLMM_fit_4cond.ipynb`, so that `arviz` can read the saved model.
+If it does not exist yet, create it from a terminal with conda available (e.g. Anaconda Prompt):
+
+`conda create -n HS-env python=3.12 -c conda-forge -y`
+
+`conda activate HS-env`
+
+`pip install -r nutpie_unwrap_requirements.txt`
+
+`reticulate` cannot always find the conda binary (e.g. RStudio on Windows with an "All Users" install in `C:/ProgramData`), so we search the usual install locations.
+To use a different conda binary or environment, set `RETICULATE_CONDA` or `HS_CONDA_ENV` in your `~/.Renviron`.
+
+```{r Load functions and packages}
+source('HS_functions.R')
+require(reticulate) #run python from R
+#conda environment in which the model was fitted
+hs_env = Sys.getenv('HS_CONDA_ENV', unset = 'HS-env')
+#find the conda binary, unless the user has specified one
+if(!nzchar(Sys.getenv('RETICULATE_CONDA')))
+{
+  conda_roots = c(Sys.getenv(c('USERPROFILE', 'LOCALAPPDATA', 'ProgramData', 'HOME')),
+                  '/opt', '/usr/local')
+  conda_dists = c('anaconda3', 'miniconda3', 'miniforge3', 'mambaforge')
+  conda_bins = if(.Platform$OS.type == 'windows'){'Scripts/conda.exe'}else{'bin/conda'}
+  conda_candidates = c(Sys.getenv('CONDA_EXE'), #set inside an activated conda shell
+                       Sys.which('conda'), #on the PATH
+                       file.path(rep(conda_roots[nzchar(conda_roots)],
+                                     each = length(conda_dists)),
+                                 conda_dists,
+                                 conda_bins)
+                       )
+  conda_found = Filter(function(x){nzchar(x) & file.exists(x)},
+                       conda_candidates)
+  if(length(conda_found))
+  {
+    Sys.setenv(RETICULATE_CONDA = normalizePath(conda_found[1], winslash = '/'))
+  }
+}
+#use the environment, with instructions if it cannot be found
+tryCatch(use_condaenv(hs_env, required = TRUE),
+         error = function(e)
+         {
+           stop('Could not use conda environment "', hs_env, '": ', conditionMessage(e),
+                '\nCreate it (see above), or set RETICULATE_CONDA to the path of your conda binary.',
+                call. = FALSE)
+         }
+         )
+reticulate::py_config()
+#load .feather files (readable in R and Python)
+require(arrow)
+#process and plot MCMC data
+require(posterior)
+require(bayesplot)
+options(posterior.num_args = list(sigfig = 3))#for ease of reading
+
+#condition colours, as in HS_ExploratoryPlots.Rmd
+cond_cols = list(
+  vertical = 'darkred',
+  horizontal = 'darkgreen'
+)
+#conditions, reference first, and the model effects for each
+conds = c('vertical', 'horizontal')
+cond_effs = list(vertical = character(0),
+                 horizontal = c('H'))
+```
+
+# Prepare data
+
+Then load the data that will be used.
+This is our dance data, reorganised as `hs_dance_reorg.csv`, from which we select the same subset as in `HS_circGLMM_mixture_lowel.ipynb`.
+
+```{r Load data}
+#Dance angle data
+hd = read.table(file = '0Data/hs_dance_reorg.csv',
+                header = T,
+                sep  = ',')
+#select low elevations and the conditions of interest
+lowel_max = 15 # degrees
+hd = subset(hd,
+            sun_el < lowel_max &
+              condition %in% conds &
+              !is.na(feeder_angle) #as dropped in the notebook
+            )
+head(hd)
+```
+
+## Format data
+
+Ensure that each variable has the correct data format for subsequent analysis.
+
+```{r Data formatting}
+hd = within(hd,
+            {
+              ID = droplevels(as.factor(ID)) # bee identifier as a factor
+              ID_d = droplevels(as.factor(ID_d)) # dance identifier as a factor
+              condition = factor(condition,
+                                 levels = conds)
+              angle = feeder_angle # angle relative to feeder, between -pi and pi
+              angle_deg = deg(feeder_angle) # in degrees, for plotting
+            }
+)
+u_id = with(hd, unique(ID)) # unique bees
+length(u_id)
+u_dance = with(hd, unique(ID_d)) # unique dances
+length(u_dance)
+#dances per individual and condition
+with(unique(hd[, c('ID', 'ID_d', 'condition')]),
+     table(ID, condition))
+```
+
+To align individual and dance numbers from the model with the names in the `data.frame` we need to load these columns from the `pandas` version of the data.
+This data is saved in a `.feather` file (readable in both `R` and `Python`).
+
+```{r Load the data in pandas format}
+hd_pd = read_feather(file = "0Data/hs_dance_lowel_VH.feather",
+                     col_select = c('Individual', 'Dance', 'Dance_label'))
+#check that the same rows were selected in the same order
+stopifnot(nrow(hd_pd) == nrow(hd),
+          all(hd_pd$Dance_label == as.character(hd$ID_d)))
+#find individuals and dances
+hd = within(hd,
+            {
+              Individual_nr = hd_pd$Individual
+              Dance_nr = hd_pd$Dance
+            }
+            )
+#lookup tables for individuals and dances
+id_tab = unique(hd[, c('ID', 'Individual_nr')])
+id_tab = id_tab[order(id_tab$Individual_nr), ]
+dance_tab = unique(hd[, c('ID_d', 'Dance_nr', 'ID', 'Individual_nr', 'condition')])
+dance_tab = dance_tab[order(dance_tab$Dance_nr), ]
+n_ind = nrow(id_tab)
+n_dance = nrow(dance_tab)
+#which individuals danced in which conditions (rows ordered by Individual_nr)
+id_cond = sapply(conds,
+                 function(cnd)
+                 {
+                   id_tab$Individual_nr %in%
+                     subset(hd, condition %in% cnd)$Individual_nr
+                 }
+                 )
+```
+
+# Load Bambi model and extract draws for each parameter
+
+This loads draws from our fitted Bayesian model's posterior distribution.
+Because the model was built and saved in `Python`, we use the `reticulate` package to interface directly with `Python` libraries from within our `R` environment.
+
+**Parameter Structural Hierarchies**
+
+The model parameters are categorised into two groups based on their structural hierarchy: Population-Level (Global) Parameters (`global_params`) and Group-Level (Random) Effects (`group_params`), the latter for both individuals and dances.
+Parameters missing from the model (e.g. `w_H` in the model with the same mixing in both conditions) are skipped, and treated as zero below.
+
+```{r Load the model}
+# Define Parameter Groupings
+global_params = c(
+  "Intercept", "H",
+  "kappa_Intercept", "kappa_H",
+  "w_Intercept", "w_H",
+  "1|Individual_sigma", "1|Dance_sigma",
+  "kappa_1|Individual_sigma", "kappa_1|Dance_sigma",
+  "w_1|Individual_sigma", "w_1|Dance_sigma"
+)
+
+group_params = c(
+  "1|Individual", "1|Dance",
+  "kappa_1|Individual", "kappa_1|Dance",
+  "w_1|Individual", "w_1|Dance"
+)
+
+#Import arviz for model handling
+az = reticulate::import("arviz")
+# Load the NetCDF file
+idata = az$from_netcdf(params$model_file)
+print(params$model_file)
+post = idata$posterior
+#parameters in this model
+post_vars = unlist(reticulate::iterate(post$data_vars$keys()))
+global_params = intersect(global_params, post_vars)
+group_params = intersect(group_params, post_vars)
+print(global_params)
+```
+
+## Reshaping posterior draws into wide format
+
+Each parameter array is reshaped so that draws run sequentially within each chain, and each level of a group-level effect becomes its own column, named by its level in the model (e.g. `1_Individual_5`, `w_1_Dance_17`).
+The level names are the `Individual` and `Dance` codes from `hs_dance_lowel_VH.feather`.
+
+```{r Reorganise draws by individual and dance}
+
+# Reshape posterior draws -------------------------------------------------
+draws_list = list()
+for(param in c(global_params, group_params))
+{
+  da = reticulate::py_get_item(post, param)
+  vals = da$values # chain x draw (x level)
+  if(length(dim(vals)) == 2)
+  {
+    # draws within chains
+    draws_list[[param]] = as.vector(t(vals))
+  }else
+  {
+    dim_name = unlist(da$dims)[3]
+    lvls = as.character(reticulate::py_get_item(da$coords, dim_name)$values)
+    mat = matrix(aperm(vals, c(2, 1, 3)),
+                 ncol = dim(vals)[3])
+    clean_base = gsub(pattern = "\\|",
+                      replacement =  "_",
+                      x =  param)
+    for(j in seq_along(lvls))
+    {
+      draws_list[[paste0(clean_base, "_", lvls[j])]] = mat[, j]
+    }
+  }
+}
+n_chains = dim(reticulate::py_get_item(post, 'Intercept')$values)[1]
+obs_per_chain = dim(reticulate::py_get_item(post, 'Intercept')$values)[2]
+draws_wide = data.frame(.chain = rep(x = 1:n_chains, each = obs_per_chain),
+                        .iteration = rep(x = 1:obs_per_chain, times = n_chains),
+                        draws_list,
+                        check.names = FALSE)
+#check that every individual and dance was found
+stopifnot(all(paste0("1_Individual_", id_tab$Individual_nr) %in% colnames(draws_wide)),
+          all(paste0("1_Dance_", dance_tab$Dance_nr) %in% colnames(draws_wide)))
+
+# Export to draws dataframe
+draws_final = posterior::as_draws_df(draws_wide)
+
+#Fetch a parameter's draws, or zeros if it is not in this model
+GetDraws = function(param)
+{
+  if(param %in% colnames(draws_final)){draws_final[[param]]}else{0}
+}
+#Is this a mixture model?
+is_mixture = 'w_Intercept' %in% global_params
+```
+
+# Inspect model estimates
+
+```{r Inspect main effects}
+mcmc_trace(draws_final,
+           pars = intersect(c('Intercept', 'H'), global_params),
+           transformations = unwrap_circular_deg)
+mcmc_trace(draws_final,
+           pars = intersect(c('kappa_Intercept', 'kappa_H', 'w_Intercept', 'w_H'), global_params))
+mcmc_trace(draws_final,
+           pars = grep('_sigma$', global_params, value = TRUE))
+```
+
+Check the $\hat{R}$ values (convergence is indicated by $\hat{R}<1.01$).
+Disagreement between chains in `Intercept`, `H` or the `w_` parameters would indicate label switching.
+
+```{r summarise fixef with arviz}
+azsum_fixed = az$summary(idata,
+                         var_names = global_params,
+                         circ_var_names = intersect(c("Intercept", "H"), global_params)
+)
+print(azsum_fixed[, c(1, 3, 4, 7, 9)], digits = 3)
+```
+
+```{r divergences}
+divs = reticulate::py_get_item(idata$sample_stats, 'diverging')$values
+print(paste('Divergent transitions per chain:', paste(rowSums(divs), collapse = ', ')))
+```
+
+# Extract predictions
+
+To look at the model estimates in context and compare the predictions with the data, we need to extract and summarise the draws.
+The posterior can be summarised by its quantiles: `quantile(x, probs = c(0.025, 0.975))` identifies the interval containing the central $95\%$ of draws for `x`.
+
+On a circular scale the bounds between which quantiles should be counted are not clearly defined.
+We centre each set of draws on its circular median before calculating quantiles, so that the boundary falls far from the bulk of the estimates.
+
+```{r set up functions to summarise draws}
+
+#A function to find the circular median in (-pi, pi)
+MedCDraws = function(x,
+                     templ = 'none', #assumes radians
+                     medn = 1) #take the 1st median
+{
+  median.circular( circular(x = mod_circular(x),
+                            template = templ)
+                                           )[medn]
+}
+#A function to report circular quantiles in degrees, centred on the circular median
+QDegDraws = function(x,
+                     probs = c(0.5, 0.025, 0.975))
+{
+  mx = as.numeric(MedCDraws(x))
+  round(deg(
+    quantile(mod_circular(x - mx), probs = probs) + mx
+  ))
+}
+#A function to report linear quantiles
+QDraws = function(x,
+                  probs = c(0.5, 0.025, 0.975),
+                  digits = 2)
+{
+  round(quantile(x, probs = probs),
+        digits = digits)
+}
+#Bimodality index: 0 for unimodal (w = 0 or 1), 1 for axially symmetric (w = 0.5)
+Bimodality = function(w)
+{
+  1 - abs(2 * w - 1)
+}
+#Linear predictors for a condition, given the prefix of the parameter ('' for mu, 'kappa_' or 'w_')
+#and optional individual and dance levels
+LinPred = function(prefix, cnd, i = NULL, d = NULL)
+{
+  eta = GetDraws(paste0(prefix, 'Intercept'))
+  for(eff in cond_effs[[cnd]])
+  {
+    eta = eta + GetDraws(paste0(prefix, eff))
+  }
+  if(!is.null(i)){eta = eta + GetDraws(paste0(prefix, '1_Individual_', i))}
+  if(!is.null(d)){eta = eta + GetDraws(paste0(prefix, '1_Dance_', d))}
+  eta
+}
+#Predicted mu, kappa and w for a condition (optionally for an individual and dance)
+#relabelled by the population-level primary mode of that condition (flip: cos(mu) < 0),
+#which leaves the mixture density unchanged
+Predict = function(cnd, i = NULL, d = NULL)
+{
+  flip = cos(LinPred('', cnd)) < 0
+  mu = mod_circular(LinPred('', cnd, i, d))
+  kappa = softplus(LinPred('kappa_', cnd, i, d))
+  w = if(is_mixture){plogis(LinPred('w_', cnd, i, d))}else{rep(1, length(mu))}
+  list(mu = ifelse(flip, mod_circular(mu + pi), mu),
+       kappa = kappa,
+       w = ifelse(flip, 1 - w, w),
+       flip = flip)
+}
+```
+
+## Population-level predictions for each condition
+
+In the plots below, each mode ($\mu_1 = \mu$ and $\mu_2 = \mu + \pi$) is shown as a separate mean vector of length $A_1(\kappa)$, with line width (and contour opacity) scaled by its weight ($w$ and $1 - w$), following `PlotMV_circMLE` in `HS_functions.R`: line width $5w$ for individuals and populations ($2w$ for dances), with a minimum of 0.5 so that minor modes remain visible.
+
+```{r Population predictions}
+pop_draws = lapply(setNames(conds, conds), Predict)
+
+#check for relabelling
+for(cnd in conds)
+{
+  print(paste0(cnd, ': proportion of draws relabelled = ',
+               round(mean(pop_draws[[cnd]]$flip), 3)))
+}
+
+pred_table = do.call(rbind,
+                     lapply(conds,
+                            function(cnd)
+                            {
+                              pd = pop_draws[[cnd]]
+                              mq = QDegDraws(pd$mu)
+                              kq = QDraws(pd$kappa)
+                              rq = QDraws(A1(pd$kappa), digits = 3)
+                              wq = QDraws(pd$w, digits = 3)
+                              bq = QDraws(Bimodality(pd$w), digits = 3)
+                              data.frame(condition = cnd,
+                                         mu_median = mq[1], mu_lower = mq[2], mu_upper = mq[3],
+                                         kappa_median = kq[1], kappa_lower = kq[2], kappa_upper = kq[3],
+                                         rho_median = rq[1], rho_lower = rq[2], rho_upper = rq[3],
+                                         w_median = wq[1], w_lower = wq[2], w_upper = wq[3],
+                                         B_median = bq[1], B_lower = bq[2], B_upper = bq[3],
+                                         row.names = NULL)
+                            }
+                     )
+)
+print(pred_table)
+```
+
+## Extracting individual- and dance-specific predictions
+
+This section combines population-level and group-level parameters to compute the posterior predictions for each individual in each condition in which it danced, and for each dance in the condition in which it was performed.
+
+**Processing Workflow**
+
+- **Linear Combination Reconstruction**: The population-level effects are recombined with the individual-level (and dance-level) deviations to reconstruct the specific direction ($\mu$), consistency ($\kappa$) and mixture weight ($w$), using `Predict`.
+
+- **Nested Storage Architecture**: The raw vectors are assigned to nested lists (`individual_draws`, `dance_draws`) to preserve the entire distribution, and point-estimate summaries (medians) are stored in matrices (`mu_id`, `kappa_id`, `w_id`) for the conditions in which each individual danced (otherwise `NA`).
+
+```{r Extract individual predictions}
+# Setup containers for summary statistics
+mu_id = kappa_id = w_id = matrix(NA,
+                                 nrow = n_ind,
+                                 ncol = length(conds),
+                                 dimnames = list(NULL, conds))
+
+# Structure: individual_draws[[i]]$mu$vertical
+individual_draws = vector("list", n_ind)
+
+for(i in id_tab$Individual_nr) {
+  individual_draws[[i]] = list(mu = list(), kappa = list(), w = list())
+  for(cnd in conds[id_cond[id_tab$Individual_nr == i, ]])
+  {
+    pi_c = Predict(cnd, i = i)
+    individual_draws[[i]]$mu[[cnd]] = pi_c$mu
+    individual_draws[[i]]$kappa[[cnd]] = pi_c$kappa
+    individual_draws[[i]]$w[[cnd]] = pi_c$w
+    mu_id[i, cnd] = MedCDraws(pi_c$mu)
+    kappa_id[i, cnd] = median(pi_c$kappa)
+    w_id[i, cnd] = median(pi_c$w)
+  }
+}
+```
+
+Each dance was performed in a single condition, so its prediction combines the population, individual and dance-level effects for that condition only.
+
+```{r Extract dance predictions}
+mu_dance = kappa_dance = w_dance = numeric(n_dance)
+dance_draws = vector("list", n_dance)
+
+for(d in dance_tab$Dance_nr)
+{
+  i = dance_tab$Individual_nr[dance_tab$Dance_nr == d]
+  cnd = as.character(dance_tab$condition[dance_tab$Dance_nr == d])
+  dance_draws[[d]] = Predict(cnd, i = i, d = d)
+  mu_dance[d] = MedCDraws(dance_draws[[d]]$mu)
+  kappa_dance[d] = median(dance_draws[[d]]$kappa)
+  w_dance[d] = median(dance_draws[[d]]$w)
+}
+```
+
+### Visualising individual predictions
+
+This section loops through individual bees to plot observed waggle$~$runs against the model's posterior predictions for each condition.
+The raw circular data are displayed alongside density contours of the mean vector of each mode, derived from the joint posterior distribution of $\mu$ and $\kappa$ for that individual (primary mode, $\mu_1$, in red-yellow; reverse mode, $\mu_2$, in blue), with opacity scaled by the posterior median weight of each mode.
+Thin lines show the median estimated mean$~$vectors of the two modes for each dance, and arrows show those for the individual, with line widths scaled by the weight of each mode.
+Conditions in which an individual did not dance are left blank.
+
+```{r Mode arrow function}
+#Plot separate mean vectors for each mode (mu1 = mu, mu2 = mu + pi), each of length A1(kappa),
+#with line width scaled by the weight of that mode (as in PlotMV_circMLE: lwd = 5 * weight1)
+#lwd is the line width of a fully unimodal mode (w = 1), lwd_min keeps minor modes visible
+ModeArrows = function(mu, kappa, w, col, lwd = 5, lwd_min = 0.5, length = 0, alpha = 200/255)
+{
+  mus = c(mu, mod_circular(mu + pi))
+  ws = if(is_mixture){c(w, 1 - w)}else{1}
+  for(md in seq_along(ws))
+  {
+    arrows.circular(
+      x = circular(mus[md],
+                   units = 'radians',
+                   rotation = 'clock',
+                   zero = pi/2),
+      y = A1(kappa),
+      lwd = max(lwd_min, lwd * ws[md]),
+      length = length,
+      col = adjustcolor(col, alpha.f = alpha)
+    )
+  }
+}
+#Plot posterior density contours for the mean vectors of both modes,
+#with opacity scaled by the posterior median weight of each mode
+ModeContours = function(draws_list, cnd)
+{
+  w_med = median(draws_list$w[[cnd]])
+  Draws2Cont(draws_list,
+             alpha = 200/255 * w_med,
+             x_string = paste0('sin(mu$', cnd, ') * A1(kappa$', cnd, ')'),
+             y_string = paste0('cos(mu$', cnd, ') * A1(kappa$', cnd, ')'))
+  if(is_mixture)
+  {
+    Draws2Cont(draws_list,
+               palette = 'Blues 3',
+               alpha = 200/255 * (1 - w_med),
+               x_string = paste0('-sin(mu$', cnd, ') * A1(kappa$', cnd, ')'),
+               y_string = paste0('-cos(mu$', cnd, ') * A1(kappa$', cnd, ')'))
+  }
+}
+```
+
+```{r Plot the individual predictions, fig.height = 10, fig.width = 10}
+par(pty = 's')
+par(mar = c(0,0,0,0),
+    mfrow = c(4,4) )
+for(i in id_tab$Individual_nr)
+{
+  indiv = as.character(id_tab$ID[id_tab$Individual_nr == i])
+  for(cnd in conds)
+  {
+    dt_ic = subset(hd,
+                   Individual_nr == i &
+                     condition %in% cnd)
+    if(!nrow(dt_ic))
+    {
+      plot.new()
+      mtext(text = paste(indiv, '\nno', cnd, 'dances'),
+            side = 1,
+            line = -2)
+      next
+    }
+    with(dt_ic,
+    {
+      PCfun(angles = angle_deg,
+           col = cond_cols[[cnd]],
+           plot_rho = FALSE,
+           title = paste(indiv, cnd))
+      }
+    )
+    ModeContours(individual_draws[[i]], cnd)
+    #dance estimates
+    for(d in unique(dt_ic$Dance_nr))
+    {
+      ModeArrows(mu_dance[d], kappa_dance[d], w_dance[d],
+                 col = cond_cols[[cnd]], lwd = 2)
+    }
+    #individual estimate
+    ModeArrows(mu_id[i, cnd], kappa_id[i, cnd], w_id[i, cnd],
+               col = cond_cols[[cnd]], lwd = 5, length = 0.1/1.25, alpha = 0.8)
+  }
+}
+```
+
+## Plot population level predictions
+
+### Visualising population-level circular predictions
+
+This section plots all waggle runs in each condition, the median estimated mean$~$vectors of both modes for each individual (thin lines), posterior density contours for the population mean vectors of both modes, and the population's median estimated mean$~$vectors (thick arrows).
+
+```{r Plot population level predictions, fig.height = 5, fig.width = 10}
+par(pty = 's')
+par(mfrow = c(1,2), mar = c(0,0,0,0))
+
+for(cnd in conds)
+{
+  with(subset(hd, condition %in% cnd), {
+    PCfun(angles = angle_deg, col = cond_cols[[cnd]], shrink = 1.5, plot_rho = FALSE,
+          title = cnd)
+  })
+
+  for(i in id_tab$Individual_nr[id_cond[, cnd]]) {
+    ModeArrows(mu_id[i, cnd], kappa_id[i, cnd], w_id[i, cnd],
+               col = cond_cols[[cnd]], lwd = 2)
+  }
+
+  pop_list = list(mu = setNames(list(pop_draws[[cnd]]$mu), cnd),
+                  kappa = setNames(list(pop_draws[[cnd]]$kappa), cnd),
+                  w = setNames(list(pop_draws[[cnd]]$w), cnd))
+  ModeContours(pop_list, cnd)
+
+  ModeArrows(MedCDraws(pop_draws[[cnd]]$mu),
+             median(pop_draws[[cnd]]$kappa),
+             median(pop_draws[[cnd]]$w),
+             col = adjustcolor(cond_cols[[cnd]], offset = c(rep(-0.2,3),0)),
+             lwd = 5, length = 0.1/1.25)
+}
+
+for(cnd in conds)
+{
+  print(paste(cnd, "primary mode mean direction"))
+  print(QDegDraws(pop_draws[[cnd]]$mu))
+}
+```
+
+### Effects of horizontal orientation
+
+The change in each population-level parameter between the vertical and horizontal conditions.
+Only `r sum(id_cond[, 'vertical'] & id_cond[, 'horizontal'])` individuals danced in both conditions, and the model has no individual-level effects of condition, so the change is the same for every individual.
+
+```{r Horizontal effects, fig.width = 10}
+dmu = mod_circular(pop_draws$horizontal$mu - pop_draws$vertical$mu)
+dkappa = pop_draws$horizontal$kappa - pop_draws$vertical$kappa
+dw = pop_draws$horizontal$w - pop_draws$vertical$w
+dB = Bimodality(pop_draws$horizontal$w) - Bimodality(pop_draws$vertical$w)
+
+par(mfrow = c(1,4))
+for(nm in c('dmu', 'dkappa', 'dw', 'dB'))
+{
+  x = switch(nm, dmu = deg(dmu), dkappa = dkappa, dw = dw, dB = dB)
+  VertHist(data = x,
+           main = paste0('\n', nm, '\nhorizontal - vertical'),
+           ylab = switch(nm, dmu = 'diff mu (°)', dkappa = 'diff kappa', dw = 'diff w', dB = 'diff B'),
+           col = adjustcolor(cond_cols$horizontal, alpha.f = 100/255),
+           cex.axis = 0.7)
+  abline(h = 0, lty = 2)
+}
+
+effect_table = data.frame(
+  effect = c('dmu (°)', 'dkappa', 'drho', 'dw', 'dB'),
+  rbind(QDegDraws(dmu),
+        QDraws(dkappa),
+        QDraws(A1(pop_draws$horizontal$kappa) - A1(pop_draws$vertical$kappa), digits = 3),
+        QDraws(dw, digits = 3),
+        QDraws(dB, digits = 3)),
+  p_greater_than_0 = round(c(mean(dmu > 0), mean(dkappa > 0),
+                             mean(A1(pop_draws$horizontal$kappa) > A1(pop_draws$vertical$kappa)),
+                             mean(dw > 0), mean(dB > 0)), 3),
+  check.names = FALSE
+)
+print(effect_table)
+```
+
+# Bimodality
+
+**Hypothesis**: horizontal dances are more likely to be bimodal than vertical dances.
+
+Bimodality ($B$) is compared at two levels:
+
+1. **Population level**: $B$ for a typical dance (random effects at zero) in each condition (above, `dB`).
+2. **Dance level**: the mean $B$ across the observed dances in each condition, which includes the dance and individual random effects.
+
+## Dance-level bimodality
+
+Posterior median $w$ for each dance against the observed proportion of its waggle runs within 90° of the population primary mode for its condition.
+Dances near 1 are unimodal towards the primary mode, those near 0 are unimodal but reversed, and those near 0.5 are bimodal.
+
+```{r Dance bimodality, fig.width = 10, fig.height = 5}
+#observed proportion of runs within 90° of the population primary mode
+pop_mu_med = sapply(conds, function(cnd){MedCDraws(pop_draws[[cnd]]$mu)})
+dance_tab = within(dance_tab,
+                   {
+                     w_med = w_dance[Dance_nr]
+                     B_med = Bimodality(w_dance[Dance_nr])
+                     prop_primary = sapply(Dance_nr,
+                                           function(d)
+                                           {
+                                             dt_d = subset(hd, Dance_nr == d)
+                                             cnd = as.character(dt_d$condition[1])
+                                             mean(cos(dt_d$angle - pop_mu_med[cnd]) > 0)
+                                           }
+                                           )
+                   }
+                   )
+
+par(mfrow = c(1,2), pty = 's', mar = c(4,4,2,1))
+with(dance_tab,
+     {
+       plot(x = prop_primary,
+            y = w_med,
+            xlim = c(0,1), ylim = c(0,1),
+            pch = 19,
+            col = adjustcolor(unlist(cond_cols[as.character(condition)]), alpha.f = 0.6),
+            xlab = 'Observed proportion within 90° of primary mode',
+            ylab = 'Posterior median w',
+            main = 'Mixture weight per dance')
+       abline(a = 0, b = 1, lty = 2, col = 'gray')
+       legend('topleft', legend = conds, pch = 19, col = unlist(cond_cols), bty = 'n')
+     }
+)
+
+#mean B across observed dances in each condition, per draw
+B_dance_mean = lapply(setNames(conds, conds),
+                      function(cnd)
+                      {
+                        ds = dance_tab$Dance_nr[dance_tab$condition %in% cnd]
+                        rowMeans(sapply(ds, function(d){Bimodality(dance_draws[[d]]$w)}))
+                      }
+                      )
+dB_dance = B_dance_mean$horizontal - B_dance_mean$vertical
+
+B_lim = c(0, 1)
+plot(NULL, xlim = c(0.5, 2.5), ylim = B_lim, xaxt = 'n',
+     xlab = '', ylab = 'Mean B across dances', main = 'Dance-level bimodality')
+axis(1, at = 1:2, labels = conds)
+for(j in seq_along(conds))
+{
+  hst = hist(B_dance_mean[[conds[j]]], breaks = seq(0, 1, by = 0.01), plot = FALSE)
+  dens = 0.4 * hst$density / max(hst$density)
+  rect(xleft = j - dens, xright = j + dens,
+       ybottom = head(hst$breaks, -1), ytop = hst$breaks[-1],
+       col = adjustcolor(cond_cols[[conds[j]]], alpha.f = 100/255), border = NA)
+}
+#dance medians
+with(dance_tab,
+     points(x = as.numeric(condition) + runif(length(B_med), -0.15, 0.15),
+            y = B_med,
+            pch = 19, cex = 0.5,
+            col = adjustcolor(unlist(cond_cols[as.character(condition)]), alpha.f = 0.4))
+)
+```
+
+```{r Bimodality summary}
+bimodality_table = data.frame(
+  measure = c('B vertical (population)', 'B horizontal (population)', 'dB (population)',
+              'B vertical (mean of dances)', 'B horizontal (mean of dances)', 'dB (mean of dances)'),
+  rbind(QDraws(Bimodality(pop_draws$vertical$w), digits = 3),
+        QDraws(Bimodality(pop_draws$horizontal$w), digits = 3),
+        QDraws(dB, digits = 3),
+        QDraws(B_dance_mean$vertical, digits = 3),
+        QDraws(B_dance_mean$horizontal, digits = 3),
+        QDraws(dB_dance, digits = 3)),
+  check.names = FALSE
+)
+print(bimodality_table)
+print(paste0('P(dB > 0), population level: ', round(mean(dB > 0), 3)))
+print(paste0('P(dB > 0), mean of dances: ', round(mean(dB_dance > 0), 3)))
+```
+
+## Visualising consistency predictions
+
+The posterior distributions of the concentration ($\kappa$) shared by both modes in each condition.
+
+```{r Kappa predictions}
+par(mfrow = c(1,2))
+kappa_lim = range(unlist(lapply(pop_draws, `[[`, 'kappa')))
+
+for(cnd in conds)
+{
+  VertHist(data = pop_draws[[cnd]]$kappa,
+           main = paste0('\n', cnd),
+           ylab = 'kappa',
+           ylim = kappa_lim,
+           col = adjustcolor(cond_cols[[cnd]], alpha.f = 100/255),
+           cex.axis = 0.7)
+}
+print(pred_table[, c('condition', 'kappa_median', 'kappa_lower', 'kappa_upper')])
+```
+
+## Variation across individuals and dances
+
+The scales of the individual- and dance-level random effects.
+Offsets in $\mu$ are Normal, so their scales are standard deviations in radians (converted here to degrees); those for $\kappa$ and $w$ are standard deviations on the softplus and logit scales.
+
+```{r Random effect scales, fig.width = 10}
+sigma_params = grep('_sigma$', global_params, value = TRUE)
+par(mfrow = c(1, length(sigma_params)))
+for(sp in sigma_params)
+{
+  is_mu = !grepl('^kappa_|^w_', sp)
+  VertHist(data = if(is_mu){deg(draws_final[[sp]])}else{draws_final[[sp]]},
+           main = paste0('\n', gsub('_sigma', '', sp)),
+           ylab = if(is_mu){'SD (°)'}else{'SD'},
+           col = adjustcolor(if(grepl('Dance', sp)){'gray50'}else{'gray20'}, alpha.f = 100/255),
+           cex.axis = 0.7)
+}
+
+sigma_table = do.call(rbind,
+                      lapply(sigma_params,
+                             function(sp)
+                             {
+                               is_mu = !grepl('^kappa_|^w_', sp)
+                               q = if(is_mu){QDraws(deg(draws_final[[sp]]), digits = 1)}else{QDraws(draws_final[[sp]])}
+                               data.frame(parameter = sp,
+                                          units = if(is_mu){'degrees'}else{'link scale'},
+                                          median = q[1], lower = q[2], upper = q[3],
+                                          row.names = NULL)
+                             }
+                      )
+)
+print(sigma_table)
+```
+
+Dances whose mean direction differs from their individual's by more than 90° are those for which the model must trade off a drift in direction against a reversal (low $w$).
+
+```{r Large dance offsets}
+dance_offsets = sapply(dance_tab$Dance_nr,
+                       function(d){median(abs(deg(draws_final[[paste0('1_Dance_', d)]])))})
+print(paste('Dances with median |offset| > 90°:', sum(dance_offsets > 90), 'of', n_dance))
+print(paste('Dances with median |offset| > 45°:', sum(dance_offsets > 45), 'of', n_dance))
+```
+
+# Model comparison
+
+Leave-one-out cross-validation (LOO-CV) for each waggle run, comparing the models fitted in `HS_circGLMM_mixture_lowel.ipynb`:
+
+0. Unimodal: condition affects mean direction and concentration only.
+1. Bimodal, same mixing: dances may be bimodal, equally often in both conditions.
+2. Bimodal, condition-dependent mixing.
+
+```{r Model comparison}
+model_files = c('Unimodal' = 'HS_lowel_VH_0_unimodal.nc',
+                'Bimodal, same mixing' = 'HS_lowel_VH_1_axial_w1.nc',
+                'Bimodal, condition-dependent mixing' = 'HS_lowel_VH_2_axial_wH.nc')
+model_files = file.path(params$model_dir, model_files)
+names(model_files) = c('Unimodal', 'Bimodal, same mixing', 'Bimodal, condition-dependent mixing')
+model_files = model_files[file.exists(model_files)]
+#keep the LOO results as Python objects, so they can be passed back to arviz
+az_py = reticulate::import("arviz", convert = FALSE)
+loo_list = lapply(model_files,
+                  function(f)
+                  {
+                    az_py$loo(az_py$from_netcdf(f))
+                  }
+                  )
+comparison = reticulate::py_to_r(az_py$compare(reticulate::dict(loo_list), ic = 'loo'))
+print(comparison[, c('rank', 'elpd_loo', 'p_loo', 'elpd_diff', 'weight', 'se', 'dse', 'warning')],
+      digits = 3)
+for(nm in names(loo_list))
+{
+  k = reticulate::py_to_r(loo_list[[nm]]$pareto_k$values)
+  print(paste0(nm, ': ', sum(k > 0.7), ' of ', length(k), ' waggle runs with Pareto k > 0.7'))
+}
+```
+
+# Appendix
+
+## Plot individual and dance effects
+
+### Mean angle
+
+```{r Inspect individual and dance means}
+plt_panels = 9
+for(base in c("1_Individual_", "1_Dance_"))
+{
+  n_lvl = if(grepl('Dance', base)){n_dance}else{n_ind}
+  for(id in 0:(ceiling(n_lvl/plt_panels)-1))
+  {
+    # Calculate the specific range of indices for this page
+    start_idx = (id * plt_panels) + 1
+    end_idx   = min((id + 1) * plt_panels, n_lvl)
+    plt = mcmc_trace(draws_final,
+                     pars = paste0(base,
+                                   start_idx:end_idx),
+                     facet_args = list(ncol = 3,
+                                       nrow = 3),
+                     transformations = function(x){deg(x)}
+    )
+    print(plt)
+  }
+}
+```
+
+### Concentration and mixture weight
+
+```{r Inspect individual and dance kappas and ws}
+plt_panels = 9
+for(base in c(paste0("kappa_", c("1_Individual_", "1_Dance_")),
+              if(is_mixture){paste0("w_", c("1_Individual_", "1_Dance_"))}))
+{
+  n_lvl = if(grepl('Dance', base)){n_dance}else{n_ind}
+  for(id in 0:(ceiling(n_lvl/plt_panels)-1))
+  {
+    # Calculate the specific range of indices for this page
+    start_idx = (id * plt_panels) + 1
+    end_idx   = min((id + 1) * plt_panels, n_lvl)
+    plt = mcmc_trace(draws_final,
+                     pars = paste0(base, start_idx:end_idx),
+                     facet_args = list(ncol = 3, nrow = 3)
+    )
+    print(plt)
+  }
+}
+```
+
+## Session Information
+
+<details>
+
+<summary>Click to expand session metadata</summary>
+
+```{r session-info, echo=FALSE}
+
+sessionInfo()
+```
+
+</details>
