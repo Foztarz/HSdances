@@ -32,13 +32,29 @@ The analysis to summarise is set by `params`: the solar elevation (`r params$ele
 
 **INPUTS**
 
-`HS_functions.R`, `0Data/hs_dance_states_<elevation>.feather`, `2Results/state_models/HS_states_<elevation>_<direction_prior>_*.nc`
+`HS_functions.R`, `0Data/hs_dance_states_<elevation>.feather`, `2Results/state_models/HS_states_<elevation>_<direction_prior>_*.nc` (`direction_prior` is the notebook's `fit_tag`, e.g. `bounded_vm_feederbound_unrelated`)
 
 **OUTPUTS**
 
 Plotted estimates, predictions and contrasts.
 
 **REFERENCES**
+
+**sun compass and solar ephemeris**
+
+- Dyer, F. C. (1987). Memory and sun compensation by honey bees. *Journal of Comparative Physiology A* 160, 621–633.
+
+- Dyer, F. C., & Dickinson, J. A. (1994). Development of sun compensation by honeybees: how partially experienced bees estimate the sun's course. *PNAS* 91, 4471–4474.
+
+- Dyer, F. C., & Dickinson, J. A. (1996). Sun-compass learning in insects: representation in a simple mind. *Current Directions in Psychological Science* 5, 67–72.
+
+- Lindauer, M. (1957). Sonnenorientierung der Bienen unter der Äquatorsonne und zur Nachtzeit. *Naturwissenschaften* 44, 1–6.
+
+- New, D. A. T., & New, J. K. (1962). The dances of honeybees at small zenith distances of the sun. *Journal of Experimental Biology* 39, 271–291.
+
+- Towne, W. F. (2008). Honeybees can learn the relationship between the solar ephemeris and a newly-experienced landscape. *Journal of Experimental Biology* 211, 3737–3743.
+
+- Wehner, R., & Lanfranconi, B. (1981). What do the ants know about the rotation of the sky? *Nature* 293, 731–733.
 
 **modelling methods**
 
@@ -67,6 +83,7 @@ Rather than describing these by a continuous mixture weight, each dance is assig
 | forward | $\mathcal{M}(\theta \mid \mu_d, \kappa_d)$ |
 | reversed | $\mathcal{M}(\theta \mid \mu_d + \pi, \kappa_d)$ |
 | axial | $w\,\mathcal{M}(\theta \mid \mu_d, \kappa_d) + (1-w)\,\mathcal{M}(\theta \mid \mu_d + \pi, \kappa_d)$, $0.25 < w < 0.75$ |
+| disoriented (optional) | $1 / 2\pi$ |
 
 The probability of each state is modelled with a multinomial logit (forward as reference), with condition effects and individual random effects:
 
@@ -77,7 +94,78 @@ $\log(\pi_\text{axial} / \pi_\text{forward}) \sim$ condition + (1 |Individual)
 The forward direction of each dance, $\mu_d$, combines a direction for its condition with individual and dance offsets, and the concentration, $\kappa_d$, has condition effects and individual and dance random effects.
 Condition effects are coded as successive differences, vertical → horizontal → antisolar → solar (H, A, S), as in `HS_circGLMM_fit_4cond.ipynb`.
 To keep reversals from being described by 180° changes in direction, condition directions and dance offsets are bounded (see `HS_circGLMM_states.ipynb`), and individual offsets have a strongly concentrated von Mises prior ($\kappa_u \sim \text{LogNormal}(\log 30, 0.6)$).
-Chains that settled in poor local optima (mean log posterior more than 20 below the best chain) were dropped before saving.
+In fits before 2026 10 21, chains that settled in poor local optima (mean log posterior more than 20 below the best chain) were dropped before saving; from the `feederbound` fits on, such chains are only reported (see *Model development* below).
+
+## Model development
+
+The aim is a model whose chains all agree without any being rejected, as a basis for a joint model across solar elevations.
+Steps so far, and why:
+
+1. **Direction priors.**
+   Unbounded direction priors (`soft`, `vonmises`) let condition or dance offsets grow to about 180°, imitating a reversal, so chains disagreed.
+   Bounding directions with $B \tanh(x / B)$ (`bounded`) converged at low elevation, but at high elevation the vertical direction traded off against Normal individual offsets.
+   The current default, `bounded_vm`, keeps bounded condition directions and dance offsets but uses strongly concentrated von Mises individual offsets.
+
+2. **High elevation, `bounded_vm` (2026 10 21).**
+   The two-state model converged after chain screening, but the three-state models did not ($\hat{R}$ 1.3–1.4 for the vertical direction), and 2–4 of 8 chains per model were dropped.
+   Two problems were identified:
+   - *Far-off chains* (mean log posterior 300–600 below the best) had condition directions near −90° to −105° and very low concentration.
+     Condition directions were bounded relative to the population direction (each within 60° of it, which was itself within 60° of the feeder), so a condition could be up to 120° from the feeder: a "forward" direction pointing away from it.
+     These chains had also started from nutpie's default initial values (zero on the latent scale, i.e. very low concentration and equal state probabilities).
+   - *Near chains* (5–8 below the best) were caused by a single vertical dance (`69r_00028`, 10 runs, mean −72°, sun elevation 84°), beyond the 60° offset bound from the other vertical dances (+2° to +31°, mean +14°).
+     In most chains it was described as forward, pulling the vertical direction to −7°; in others it was described as reversed, with the vertical direction at +17° to +35°.
+     Near the zenith a small error in time or position gives a large error in solar azimuth, so this is probably an ephemeris failure rather than a genuine dance direction.
+
+3. **Fixes tested at high elevation (`fit_tag` `bounded_vm_feederbound_disoriented`).**
+   - *Condition directions bounded relative to the feeder* (`condition_bound = 'feeder'`): each condition's forward direction is within 60° of the feeder, which is what "forward" means in this design, so the far-off configurations are excluded.
+     This is the same constraint an arctan transform or a scaled Beta prior would impose, applied to the condition direction itself rather than cumulatively.
+   - *A disoriented state* (`outlier_state = 'disoriented'`): runs uniformly distributed, with an intercept-only logit (prior mean −2), for the few dances whose directions are unrelated to the feeder (e.g. ephemeris failures).
+     Reviewers may also ask whether such dances are present.
+   - *Data-based initial values* (`data_inits = TRUE`): chains start near condition directions estimated from the dances' axes and a concentration estimated from their mean resultant lengths (nutpie still jitters each chain's start), and flagged chains are reported but not dropped.
+
+   Result (three-state condition-dependent model, 8 chains, none dropped): no chain was far off (mean log posteriors within 11 of each other), there were no divergences, and all chains agreed on the horizontal, antisolar and solar directions, concentrations, state effects and offset SDs ($\hat{R} \le 1.02$); sampling took about 7 minutes rather than about 20.
+   The vertical direction still mixed slowly ($\hat{R} = 1.18$; chain means −8° to +12°), because the outlying dance alternated between forward at −57° (pulling the vertical direction to −7°) and disoriented (vertical direction +8° to +11°).
+   A uniform state describes it poorly: its runs are tightly clustered ($R = 0.87$), just not around the feeder, as expected for an ephemeris failure.
+   Also, with an intercept-only logit against forward, the disoriented probability was proportional to the forward probability, so it was lower in conditions with many reversed dances (e.g. solar), which was not intended.
+
+   - *An "unrelated direction" state* (`outlier_state = 'unrelated'`) replaces the uniform state: runs keep the dance's concentration, around a direction $\nu_d$ unrelated to the feeder.
+     Marginalising over a uniform $\nu_d$ gives a closed form, $I_0(\kappa_d R_d) / (2\pi I_0(\kappa_d))^{n_d}$, with no extra parameters.
+     Its probability is a single parameter for all dances, with the other states sharing the remainder.
+
+   Result (`fit_tag` `bounded_vm_feederbound_unrelated`, 8 chains, none dropped, no divergences, about 6 minutes): all chains agreed on every condition direction, including vertical (chain means +13° to +16°; +14°, 95% CI +4° to +26°, $\hat{R} = 1.01$), matching the vertical dances other than `69r_00028`, which was assigned to the unrelated state with probability 1.00.
+   However, the unrelated state took more than a few dances: its probability was 0.13 (95% CI 0.03–0.29), about 13 dances' worth, including several rotated 45°–160° from their condition (e.g. horizontal dances at +46°, +119°, +126°, −143°; solar dances at +159°, −177°), all with the sun above 76°.
+   The dance offset SD halved (0.47 to 0.24 rad), as these dances were no longer described by large offsets, and it now mixes slowly (bulk ESS 79), as does the unrelated probability.
+   Short dances were not absorbed (mean probability 0.07 for dances with ≤ 3 runs).
+   So at high elevation the unrelated state describes a real feature of the data, dances rotated well away from the feeder with the sun near the zenith, and not only ephemeris failures; whether these are errors in the ephemeris or by the bees affects how the state should be interpreted.
+
+4. **Possible causes of unrelated dances, and condition effects.**
+   Our own calculation of solar azimuth cannot explain them in most conditions: in `HS_OrganiseData.Rmd`, `feeder_angle` depends on the computed solar azimuth only for vertical dances; for horizontal, antisolar, solar and zenith dances (compass bearings) it cancels out.
+   All non-vertical dances in the unrelated state passed compass calibration (`ok`, one with `only_one_annotation`).
+   A more likely cause is the bees' own internal model of the solar ephemeris, which may differ from the true function, particularly near the zenith, and appears to vary more towards the end of the day, when the sun falls behind vegetation (an observation from these experiments; we found no published report of this).
+   In the published literature:
+   - Inexperienced honeybees use an innate step-like ephemeris: the sun approximately stationary all morning, about 180° from its average afternoon azimuth, switching around local noon (Dyer & Dickinson 1994). Bees dancing through midday rotated their dances progressively, not instantaneously, which suggests a continuous function. With experience the representation comes to follow the true ephemeris (Dyer 1987; Dyer & Dickinson 1996; Towne 2008).
+   - No bee study describes an ephemeris with only "slow" and "fast" speeds of azimuth change. In ants, the representation is a smoothed version of the true function, with the fast midday rates underestimated (Wehner & Lanfranconi 1981).
+   - Near the zenith, dances become inaccurate: within about 10° of the zenith they deviated widely and often turned the wrong way, while remaining well oriented (New & New 1962), and within about 2.5° they were disoriented (Lindauer 1957).
+     These are the conditions of our high-elevation group (sun 76°–84°, 6°–14° from the zenith), so oriented dances far from the feeder would be expected there.
+   That would affect all conditions, possibly to different extents, so the probability of the unrelated state is given condition effects (`outlier_effects = TRUE`, `fit_tag` `bounded_vm_feederbound_unrelated_cond`), as for the other states.
+
+   Result (high elevation, 8 chains, none dropped, no divergences): directions as without condition effects (vertical +14°, 95% CI +3° to +24°), and the condition effects on the unrelated probability were weak and uncertain: 0.10 (vertical), 0.21 (horizontal), 0.21 (antisolar), 0.14 (solar), with wide intervals (e.g. horizontal − vertical +0.10, 95% CI −0.08 to +0.39, P(>0) = 0.80).
+   With about 9 dances assigned to the unrelated state at this elevation, condition differences cannot be resolved; the joint model, with more dances, is a better test.
+   The unrelated state also competes with the reversed and axial states in the horizontal condition, so the increase in reversed dances from vertical to horizontal became less certain (P(>0) = 0.87, compared with 0.999 without an unrelated state); the solar increase was unaffected (P(>0) = 1.00).
+   The dance offset SD and the unrelated effects mixed slowly (max $\hat{R} = 1.11$, min bulk ESS 49), so the final fits will need longer runs.
+
+   The unimodal null model (forward only) was first fitted with the bounded direction priors, which cannot describe a reversal at all (its horizontal and solar directions sat at the ±60° bound), so that comparison was not a fair test.
+   With unbounded von Mises priors instead (`direction = 'vonmises'`: population direction VonMises(0, 5), condition effects VonMises(0, 2), individual offsets with $\kappa_u \sim \text{LogNormal}(\log 30, 0.6)$, dance offsets with $\kappa_v \sim \text{LogNormal}(\log 5, 0.5)$), reversed dances can be described by large offsets and axial dances by low concentration, as in the `GUVdances` models.
+   This null model converged well (8 chains, none dropped, no divergences, max $\hat{R} = 1.02$).
+   It describes the horizontal and solar conditions by rotating their population directions (+128° and −151°, i.e. mostly away from the feeder), with a dance offset SD of 0.75 rad (43°) and 24% of dances offset by more than 45°.
+   On PSIS-LOO it scored *better* than the state model ($\Delta\text{elpd} = +47$, SE 13), but this is not reliable: 78 of 92 dances had Pareto $\hat{k} > 0.7$ for the null model (53 of 92 for the state model), and high $\hat{k}$ usually means the PSIS estimate is optimistic.
+   K-fold cross-validation over dances (or individuals) is therefore needed before comparing the state and null models.
+
+5. **Next: a joint model across elevations.**
+   Vertical dances should point towards the feeder at all elevations (a central part of the study design), so the vertical direction can be shared across elevations, with about 100 vertical dances rather than 21 at high elevation; a single outlying dance then has little influence.
+   State probabilities, including that of the unrelated state, would depend on condition and elevation, since the causes above are best accounted for jointly.
+   For model comparison, start with the three elevation bands with most data (low, medium, high) and build towards a continuous effect of sun elevation.
+   The null model, with only unimodal (forward) dances as in the `GUVdances` analysis, is included in the comparison (`unimodal`).
 
 # Set up workspace
 
@@ -149,7 +237,9 @@ cond_cols = list(
 state_cols = list(
   forward = '#1b7837',
   reversed = '#762a83',
-  axial = '#e08214'
+  axial = '#e08214',
+  unrelated = '#808080',
+  disoriented = '#808080'
 )
 states = names(state_cols)
 #successive model effects for each condition
@@ -239,6 +329,9 @@ Coords = function(dim_name)
   as.character(reticulate::py_get_item(post$coords, dim_name)$values)
 }
 model_states = Coords('state')
+#an outlier state (unrelated or disoriented) has its own probability, without condition or individual effects
+outlier_states = intersect(model_states, c('unrelated', 'disoriented'))
+main_states = setdiff(model_states, outlier_states)
 stopifnot(all(Coords('dance') == dance_tab$Dance_label),
           all(Coords('condition') == conds))
 
@@ -249,18 +342,22 @@ kappa0 = Draws('kappa_Intercept')
 kappa_eff = if(length(effect_names)){Draws('kappa_effect')}else{NULL}
 state_int = lapply(setNames(model_states[-1], model_states[-1]),
                    function(s){Draws(paste0(s, '_Intercept'))})
-state_eff = lapply(setNames(model_states[-1], model_states[-1]),
+state_eff = lapply(setNames(main_states[-1], main_states[-1]),
                    function(s)
                    {
                      nm = paste0(s, '_effect')
                      if(nm %in% post_vars){m = Draws(nm); colnames(m) = effect_names; m}else{NULL}
                    })
+out_eff = if(length(outlier_states) && paste0(outlier_states, '_effect') %in% post_vars)
+{
+  m = Draws(paste0(outlier_states, '_effect')); colnames(m) = effect_names; m
+}else{NULL}
 w_axial = if('w_axial' %in% post_vars){Draws('w_axial')}else{rep(0.5, n_samp)}
 #group-level parameters
 mu_dance = Draws('mu') # samples x dances: forward direction of each dance
 kappa_dance = Draws('kappa') # samples x dances
 p_state = Draws('p_state') # samples x dances x states: posterior state probabilities
-ind_state_z = lapply(setNames(model_states[-1], model_states[-1]),
+ind_state_z = lapply(setNames(main_states[-1], main_states[-1]),
                      function(s)
                      {
                        sweep(Draws(paste0(s, '_Individual_z')), 1,
@@ -287,6 +384,7 @@ for(s in names(state_int))
   draws_list[[paste0(s, '_Intercept')]] = state_int[[s]]
   for(e in effect_names){if(!is.null(state_eff[[s]])){draws_list[[paste0(s, '_', e)]] = state_eff[[s]][, e]}}
 }
+for(e in colnames(out_eff)){draws_list[[paste0(outlier_states, '_', e)]] = out_eff[, e]}
 draws_list$w_axial = w_axial
 for(nm in c('mu_Individual_sigma', 'mu_Dance_sigma', 'kappa_Individual_sigma', 'kappa_Dance_sigma',
             'reversed_Individual_sigma', 'axial_Individual_sigma'))
@@ -303,7 +401,7 @@ mcmc_trace(draws_final,
            pars = paste0('mu_', conds),
            transformations = unwrap_circular_deg)
 mcmc_trace(draws_final,
-           pars = grep('^(reversed|axial)_(Intercept|[HAS])$', names(draws_final), value = TRUE))
+           pars = grep('^(reversed|axial|unrelated|disoriented)_(Intercept|[HAS])$', names(draws_final), value = TRUE))
 mcmc_trace(draws_final,
            pars = c(grep('^kappa_(Intercept|[HAS])$', names(draws_final), value = TRUE), 'w_axial'))
 mcmc_trace(draws_final,
@@ -313,12 +411,14 @@ mcmc_trace(draws_final,
 Check the $\hat{R}$ values (convergence is indicated by $\hat{R}<1.01$) and the number of chains kept after screening.
 
 ```{r summarise with arviz}
-print(paste('Chains kept after screening:', n_chains,
+print(paste('Chains (after any screening):', n_chains,
             '; divergent transitions:',
             sum(reticulate::py_get_item(idata$sample_stats, 'diverging')$values)))
 main_vars = intersect(c('mu_condition', 'kappa_Intercept', 'kappa_effect',
                         'reversed_Intercept', 'reversed_effect', 'axial_Intercept', 'axial_effect',
-                        'w_axial', 'mu_Individual_sigma', 'mu_Dance_sigma',
+                        'w_axial', 'unrelated_Intercept', 'unrelated_effect',
+                        'disoriented_Intercept', 'disoriented_effect',
+                        'mu_Individual_sigma', 'mu_Dance_sigma',
                         'kappa_Individual_sigma', 'kappa_Dance_sigma',
                         'reversed_Individual_sigma', 'axial_Individual_sigma'),
                       post_vars)
@@ -373,9 +473,10 @@ KappaCond = function(cnd)
   softplus(as.vector(eta))
 }
 #State probabilities for a condition, optionally for an individual: samples x states
+#(an outlier state has its own probability, and the other states share the remainder)
 StateProbs = function(cnd, i = NULL)
 {
-  eta = sapply(model_states,
+  eta = sapply(main_states,
                function(s)
                {
                  if(s == 'forward'){return(rep(0, n_samp))}
@@ -384,19 +485,31 @@ StateProbs = function(cnd, i = NULL)
                  if(!is.null(i)){e = e + ind_state_z[[s]][, i + 1]}
                  e
                })
-  exp(eta - apply(eta, 1, max)) / rowSums(exp(eta - apply(eta, 1, max)))
+  ps = exp(eta - apply(eta, 1, max)) / rowSums(exp(eta - apply(eta, 1, max)))
+  if(length(outlier_states))
+  {
+    e_out = state_int[[outlier_states]]
+    if(!is.null(out_eff)){e_out = e_out + as.vector(out_eff %*% XCond(cnd))}
+    p_out = plogis(e_out)
+    ps = cbind(ps * (1 - p_out), p_out)
+  }
+  ps
 }
 #Expected weight of the forward direction (mu1) in a dance, given its state probabilities:
-#forward dances put all runs at mu1, axial dances a proportion w, reversed dances none
-WForward = function(ps)
+#forward dances put all runs at mu1, axial dances a proportion w, reversed dances none.
+#Outlier (unrelated or disoriented) dances are not oriented to the feeder axis, so w1 is the
+#proportion among the other dances
+WForward = function(ps, w = w_axial)
 {
-  ps[, 'forward'] + if('axial' %in% colnames(ps)){w_axial * ps[, 'axial']}else{0}
+  w1 = ps[, 'forward'] + if('axial' %in% colnames(ps)){w * ps[, 'axial']}else{0}
+  if(length(outlier_states)){w1 = w1 / (1 - ps[, outlier_states])}
+  w1
 }
 ```
 
 ## Population-level predictions for each condition
 
-For a typical individual (individual effects at zero): the forward direction ($\mu_1$, with the reverse direction $\mu_2 = \mu_1 + 180°$), concentration ($\kappa$, and mean vector length $\rho = A_1(\kappa)$), the probability of each state, and the expected proportion of waggle runs towards $\mu_1$, $w_1 = \pi_\text{forward} + w\,\pi_\text{axial}$.
+For a typical individual (individual effects at zero): the forward direction ($\mu_1$, with the reverse direction $\mu_2 = \mu_1 + 180°$), concentration ($\kappa$, and mean vector length $\rho = A_1(\kappa)$), the probability of each state, and the expected proportion of waggle runs towards $\mu_1$, $w_1 = \pi_\text{forward} + w\,\pi_\text{axial}$ (with an outlier state, the proportion among dances not in it, $w_1 / (1 - \pi_\text{out})$).
 
 ```{r Population predictions}
 pop_draws = lapply(setNames(conds, conds),
@@ -461,7 +574,7 @@ plot(NULL, xlim = c(0.5, length(conds) + 0.5), ylim = c(0, 1), xaxt = 'n',
      xlab = '', ylab = 'Probability of state',
      main = paste('Dance states,', params$elevation, 'solar elevation'))
 axis(1, at = seq_along(conds), labels = conds)
-width = 0.25
+width = 0.75 / length(model_states)
 for(j in seq_along(model_states))
 {
   s = model_states[j]
@@ -561,7 +674,7 @@ for(i in id_tab$Individual)
 mu_dance_med = apply(mu_dance, 2, function(x){as.numeric(MedCDraws(x))})
 kappa_dance_med = apply(kappa_dance, 2, median)
 ps_d = p_state_mean
-w1_dance = ps_d[, 'forward'] + if('axial' %in% model_states){median(w_axial) * ps_d[, 'axial']}else{0}
+w1_dance = WForward(ps_d, w = median(w_axial))
 dance_tab = within(dance_tab,
                    {
                      state_map = model_states[apply(ps_d, 1, which.max)]
@@ -749,7 +862,8 @@ Leave-one-dance-out cross-validation (PSIS-LOO) for the models fitted in `HS_cir
 Each dance has its own direction, concentration and state, so leaving one out changes the posterior substantially and PSIS is often unreliable (many dances with Pareto $\hat{k} > 0.7$): treat this as provisional, pending K-fold cross-validation.
 
 ```{r Model comparison}
-model_labels = c(two_states = 'Forward/reversed, condition-dependent',
+model_labels = c(unimodal = 'Unimodal (forward only, unbounded offsets)',
+                 two_states = 'Forward/reversed, condition-dependent',
                  three_states_same = 'Forward/reversed/axial, same in all conditions',
                  three_states_condition = 'Forward/reversed/axial, condition-dependent')
 model_files = file.path(params$model_dir,
@@ -759,9 +873,15 @@ names(model_files) = model_labels
 model_files = model_files[file.exists(model_files)]
 az_py = reticulate::import("arviz", convert = FALSE)
 loo_list = lapply(model_files, function(f){az_py$loo(az_py$from_netcdf(f))})
-comparison = reticulate::py_to_r(az_py$compare(reticulate::dict(loo_list), ic = 'loo'))
-print(comparison[, c('rank', 'elpd_loo', 'p_loo', 'elpd_diff', 'weight', 'se', 'dse', 'warning')],
-      digits = 3)
+if(length(loo_list) > 1)
+{
+  comparison = reticulate::py_to_r(az_py$compare(reticulate::dict(loo_list), ic = 'loo'))
+  print(comparison[, c('rank', 'elpd_loo', 'p_loo', 'elpd_diff', 'weight', 'se', 'dse', 'warning')],
+        digits = 3)
+}else
+{
+  print(paste('Only one model fitted with this fit_tag:', names(loo_list)))
+}
 for(nm in names(loo_list))
 {
   k = reticulate::py_to_r(loo_list[[nm]]$pareto_k$values)
