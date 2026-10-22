@@ -28,11 +28,12 @@ knitr::opts_chunk$set(echo = TRUE)
 **DESCRIPTION**
 
 Load and plot the state-switching circular GLMM fitted in `HS_circGLMM_states.ipynb`, which assigns each dance to a forward, reversed or axial (bimodal) state and models the probability of each state as a function of condition.
+With `elevation: "joint"`, summarise instead the joint model fitted across solar elevation bands in `HS_circGLMM_states_joint.ipynb`, in which predictions are made for each cell (elevation band × condition).
 The analysis to summarise is set by `params`: the solar elevation (`r params$elevation`), the direction prior (`r params$direction_prior`) and the model (`r params$model`), read from `params$model_dir`.
 
 **INPUTS**
 
-`HS_functions.R`, `0Data/hs_dance_states_<elevation>.feather`, `2Results/state_models/HS_states_<elevation>_<direction_prior>_*.nc` (`direction_prior` is the notebook's `fit_tag`, e.g. `bounded_vm_feederbound_unrelated`)
+`HS_functions.R`, `0Data/hs_dance_states_<elevation>.feather`, `2Results/state_models/HS_states_<elevation>_<direction_prior>_*.nc` (`direction_prior` is the notebook's `fit_tag`, e.g. `bounded_vm_feederbound_unrelated`, or `bounded_vm_unrelated` for the joint model)
 
 **OUTPUTS**
 
@@ -167,6 +168,19 @@ Steps so far, and why:
    For model comparison, start with the three elevation bands with most data (low, medium, high) and build towards a continuous effect of sun elevation.
    The null model, with only unimodal (forward) dances as in the `GUVdances` analysis, is included in the comparison (`unimodal`).
 
+6. **Joint model across elevation bands (`HS_circGLMM_states_joint.ipynb`, fitted 2026 10 22).**
+   All dances in the low ($< 15°$), medium ($30°$–$45°$) and high ($> 75°$) bands are fitted together: 312 dances by 35 bees, 19 of which danced in more than one band.
+   Effects are coded per dance from named terms, condition (`H`, `A`, `S`, successive differences), band (`low`, `high`, relative to `medium`) and their interactions where there are data, so that a continuous effect of sun elevation can replace the bands later.
+   Directions follow `condition + condition:band`, so the vertical direction is the same in every band; concentration follows `condition * band`; the unrelated state is included, with the same effects as the other state probabilities.
+   Five models were compared, differing in their state probabilities: `states_cond` (condition only), `states_cond_band` (condition + band), `states_cond_x_band` (condition × band), `states_cond_x_band_fixed` (condition × band, every cell's direction fixed at the feeder) and the `unimodal` null model (unbounded von Mises directions).
+
+   Result (4 chains of 1000 draws after 1000 tuning steps, data-based initial values, no chains dropped): no divergences in any model, chains agreed (mean log posteriors within 15 of each other), max $\hat{R}$ 1.03–1.07, the largest values for single dances rather than population parameters.
+   Cell directions agreed between chains within about 5° and between the state models within a few degrees: vertical +9° in every band, horizontal −22° (low), −24° (medium), −19° (high), antisolar −4° (medium) and +26° (high), solar +27° (medium) and +29° (high).
+   Individual differences in the reversed probability were small (`reversed_Individual_sigma` median 0.22–0.26, below the prior median of 0.67), while those in the axial probability were poorly identified (median 0.43–0.58, close to the prior).
+
+   On PSIS-LOO (see *Model comparison*), the two models with band effects on the state probabilities were best and indistinguishable (`states_cond_band` elpd −2579, `states_cond_x_band` −1, SE 8), and both were better than condition-only state probabilities (−28, SE 9) and than fixed directions (−38, SE 13); the unimodal model could not be distinguished (−28, SE 47).
+   As before, these estimates are unreliable (Pareto $\hat{k} > 0.7$ for 236–270 of 312 dances), so leave-individuals-out (grouped K-fold) cross-validation is needed before drawing conclusions, particularly for states versus the unimodal null model: see `HS_circGLMM_states_joint_kfold.ipynb` (about 3.5 hours per fold for four models on a 16 GB PC).
+
 # Set up workspace
 
 To extract these models, we need to load the appropriate functions.
@@ -247,12 +261,16 @@ cond_effs_all = list(vertical = character(0),
                      horizontal = c('H'),
                      antisolar = c('H', 'A'),
                      solar = c('H', 'A', 'S'))
+#joint model across elevation bands: predictions for each cell (band x condition)
+joint = params$elevation == 'joint'
+bands_all = c('low', 'medium', 'high')
 ```
 
 # Prepare data
 
-Load the data in the exact form used to fit the model, saved by `HS_circGLMM_states.ipynb` as a `.feather` file (readable in both `R` and `Python`).
+Load the data in the exact form used to fit the model, saved by `HS_circGLMM_states.ipynb` (or `HS_circGLMM_states_joint.ipynb`) as a `.feather` file (readable in both `R` and `Python`).
 Dances and individuals are numbered from 0 in the order of their labels, matching the model's coordinates.
+Predictions are made for each *group*: a condition for a single elevation, or a cell (elevation band × condition) for the joint model.
 
 ```{r Load data}
 hd = read_feather(file = file.path('0Data',
@@ -262,31 +280,47 @@ hd = within(hd,
             {
               condition = droplevels(factor(as.character(condition),
                                             levels = names(cond_cols)))
+              band = if(joint){factor(as.character(band), levels = bands_all)}else{params$elevation}
               angle_deg = deg(angle) # in degrees, for plotting
             }
 )
 conds = levels(hd$condition)
-cond_effs = cond_effs_all[conds]
-effect_names = unique(unlist(cond_effs))
+#groups: conditions, or cells (band_condition) in band then condition order, as in the model
+group_tab = if(joint)
+{
+  gt = unique(hd[, c('band', 'condition')])
+  gt = gt[order(gt$band, gt$condition), ]
+  data.frame(group = paste(gt$band, gt$condition, sep = '_'),
+             band = as.character(gt$band), condition = as.character(gt$condition))
+}else
+{
+  data.frame(group = conds, band = params$elevation, condition = conds)
+}
+groups = group_tab$group
+rownames(group_tab) = groups
+hd$group = factor(if(joint){paste(hd$band, hd$condition, sep = '_')}else{as.character(hd$condition)},
+                  levels = groups)
+#colour of each group: that of its condition
+GroupCol = function(g){cond_cols[[group_tab[g, 'condition']]]}
 #one row per dance (0-based codes, as in the model)
-dance_tab = unique(hd[, c('Dance', 'Dance_label', 'Individual', 'Individual_label', 'condition')])
+dance_tab = unique(hd[, c('Dance', 'Dance_label', 'Individual', 'Individual_label', 'condition', 'group')])
 dance_tab = dance_tab[order(dance_tab$Dance), ]
 id_tab = unique(hd[, c('Individual', 'Individual_label')])
 id_tab = id_tab[order(id_tab$Individual), ]
 n_dance = nrow(dance_tab)
 n_ind = nrow(id_tab)
-#which individuals danced in which conditions (rows ordered by Individual)
-id_cond = sapply(conds,
-                 function(cnd)
-                 {
-                   id_tab$Individual %in% subset(hd, condition %in% cnd)$Individual
-                 }
-                 )
-print(paste('Elevation:', params$elevation, '; conditions:', paste(conds, collapse = ', ')))
-#runs, dances and individuals per condition
-aggregate(cbind(runs = angle) ~ condition, data = hd, FUN = length)
-with(unique(hd[, c('Individual_label', 'Dance_label', 'condition')]),
-     table(Individual_label, condition))
+#which individuals danced in which groups (rows ordered by Individual)
+id_group = sapply(groups,
+                  function(g)
+                  {
+                    id_tab$Individual %in% subset(hd, group %in% g)$Individual
+                  }
+                  )
+print(paste('Elevation:', params$elevation, '; groups:', paste(groups, collapse = ', ')))
+#runs, dances and individuals per group
+aggregate(cbind(runs = angle) ~ group, data = hd, FUN = length)
+with(unique(hd[, c('Individual_label', 'Dance_label', 'group')]),
+     table(Individual_label, group))
 ```
 
 # Load model and extract draws
@@ -329,28 +363,37 @@ Coords = function(dim_name)
   as.character(reticulate::py_get_item(post$coords, dim_name)$values)
 }
 model_states = Coords('state')
-#an outlier state (unrelated or disoriented) has its own probability, without condition or individual effects
+#an outlier state (unrelated or disoriented) has its own probability, without individual effects
 outlier_states = intersect(model_states, c('unrelated', 'disoriented'))
 main_states = setdiff(model_states, outlier_states)
 stopifnot(all(Coords('dance') == dance_tab$Dance_label),
-          all(Coords('condition') == conds))
+          all(Coords(if(joint){'cell'}else{'condition'}) == groups))
+#names of the effects (terms) on concentration and on the state logits:
+#successive condition differences (H, A, S) and, for the joint model, band effects (low, high) and their interactions
+coord_names = unlist(reticulate::iterate(post$coords$keys()))
+TermNames = function(joint_dim)
+{
+  if(joint){Coords(joint_dim)}else if('effect' %in% coord_names){Coords('effect')}else{unique(unlist(cond_effs_all[conds]))}
+}
+kappa_terms = if('kappa_effect' %in% post_vars){TermNames('kappa_effect_term')}else{character(0)}
+state_terms = if(any(paste0(model_states, '_effect') %in% post_vars)){TermNames('state_effect_term')}else{character(0)}
 
 #population-level parameters
-mu_cond = Draws('mu_condition') # samples x conditions
-colnames(mu_cond) = conds
+mu_grp = Draws(if(joint){'mu_cell'}else{'mu_condition'}) # samples x groups
+colnames(mu_grp) = groups
 kappa0 = Draws('kappa_Intercept')
-kappa_eff = if(length(effect_names)){Draws('kappa_effect')}else{NULL}
+kappa_eff = if(length(kappa_terms)){Draws('kappa_effect')}else{NULL}
 state_int = lapply(setNames(model_states[-1], model_states[-1]),
                    function(s){Draws(paste0(s, '_Intercept'))})
 state_eff = lapply(setNames(main_states[-1], main_states[-1]),
                    function(s)
                    {
                      nm = paste0(s, '_effect')
-                     if(nm %in% post_vars){m = Draws(nm); colnames(m) = effect_names; m}else{NULL}
+                     if(nm %in% post_vars){m = Draws(nm); colnames(m) = state_terms; m}else{NULL}
                    })
 out_eff = if(length(outlier_states) && paste0(outlier_states, '_effect') %in% post_vars)
 {
-  m = Draws(paste0(outlier_states, '_effect')); colnames(m) = effect_names; m
+  m = Draws(paste0(outlier_states, '_effect')); colnames(m) = state_terms; m
 }else{NULL}
 w_axial = if('w_axial' %in% post_vars){Draws('w_axial')}else{rep(0.5, n_samp)}
 #group-level parameters
@@ -371,20 +414,22 @@ mu_ind = if('mu_Individual' %in% post_vars)
 {
   sweep(Draws('mu_Individual_z'), 1, Draws('mu_Individual_sigma'), '*')
 }
-bounded_dirs = grepl('bounded', params$direction_prior)
+#the unimodal null model has unbounded (von Mises) directions
+bounded_dirs = grepl('bounded', params$direction_prior) & params$model != 'unimodal'
 
-#trace-plot data frame of population-level parameters
+#trace-plot data frame of population-level parameters (interaction terms such as H:high named H.high)
+TermLabel = function(e){gsub(':', '.', e)}
 draws_list = list(.chain = rep(1:n_chains, each = n_draws),
                   .iteration = rep(1:n_draws, times = n_chains))
-for(cnd in conds){draws_list[[paste0('mu_', cnd)]] = mu_cond[, cnd]}
+for(g in groups){draws_list[[paste0('mu_', g)]] = mu_grp[, g]}
 draws_list$kappa_Intercept = kappa0
-for(e in effect_names){draws_list[[paste0('kappa_', e)]] = kappa_eff[, which(effect_names == e)]}
+for(e in kappa_terms){draws_list[[paste0('kappa_', TermLabel(e))]] = kappa_eff[, which(kappa_terms == e)]}
 for(s in names(state_int))
 {
   draws_list[[paste0(s, '_Intercept')]] = state_int[[s]]
-  for(e in effect_names){if(!is.null(state_eff[[s]])){draws_list[[paste0(s, '_', e)]] = state_eff[[s]][, e]}}
+  for(e in state_terms){if(!is.null(state_eff[[s]])){draws_list[[paste0(s, '_', TermLabel(e))]] = state_eff[[s]][, e]}}
 }
-for(e in colnames(out_eff)){draws_list[[paste0(outlier_states, '_', e)]] = out_eff[, e]}
+for(e in colnames(out_eff)){draws_list[[paste0(outlier_states, '_', TermLabel(e))]] = out_eff[, e]}
 draws_list$w_axial = w_axial
 for(nm in c('mu_Individual_sigma', 'mu_Dance_sigma', 'kappa_Individual_sigma', 'kappa_Dance_sigma',
             'reversed_Individual_sigma', 'axial_Individual_sigma'))
@@ -398,12 +443,17 @@ draws_final = posterior::as_draws_df(as.data.frame(draws_list, check.names = FAL
 
 ```{r Inspect main effects}
 mcmc_trace(draws_final,
-           pars = paste0('mu_', conds),
+           pars = paste0('mu_', groups),
            transformations = unwrap_circular_deg)
+term_pattern = '(Intercept|[HAS]|low|high|[HAS]\\.(low|high))$'
+for(s in names(state_int))
+{
+  print(mcmc_trace(draws_final,
+                   pars = grep(paste0('^', s, '_', term_pattern), names(draws_final), value = TRUE)))
+}
 mcmc_trace(draws_final,
-           pars = grep('^(reversed|axial|unrelated|disoriented)_(Intercept|[HAS])$', names(draws_final), value = TRUE))
-mcmc_trace(draws_final,
-           pars = c(grep('^kappa_(Intercept|[HAS])$', names(draws_final), value = TRUE), 'w_axial'))
+           pars = c(grep(paste0('^kappa_', term_pattern), names(draws_final), value = TRUE),
+                    intersect('w_axial', names(draws_final))))
 mcmc_trace(draws_final,
            pars = grep('_sigma$', names(draws_final), value = TRUE))
 ```
@@ -414,7 +464,7 @@ Check the $\hat{R}$ values (convergence is indicated by $\hat{R}<1.01$) and the 
 print(paste('Chains (after any screening):', n_chains,
             '; divergent transitions:',
             sum(reticulate::py_get_item(idata$sample_stats, 'diverging')$values)))
-main_vars = intersect(c('mu_condition', 'kappa_Intercept', 'kappa_effect',
+main_vars = intersect(c('mu_condition', 'mu_cell', 'kappa_Intercept', 'kappa_effect',
                         'reversed_Intercept', 'reversed_effect', 'axial_Intercept', 'axial_effect',
                         'w_axial', 'unrelated_Intercept', 'unrelated_effect',
                         'disoriented_Intercept', 'disoriented_effect',
@@ -422,7 +472,8 @@ main_vars = intersect(c('mu_condition', 'kappa_Intercept', 'kappa_effect',
                         'kappa_Individual_sigma', 'kappa_Dance_sigma',
                         'reversed_Individual_sigma', 'axial_Individual_sigma'),
                       post_vars)
-azsum = az$summary(idata, var_names = as.list(main_vars), circ_var_names = list('mu_condition'))
+azsum = az$summary(idata, var_names = as.list(main_vars),
+                   circ_var_names = as.list(intersect(c('mu_condition', 'mu_cell'), main_vars)))
 print(azsum[, c(1, 3, 4, 7, 9)], digits = 3)
 ```
 
@@ -463,37 +514,68 @@ Bounded = function(x, bound = pi/3)
 {
   bound * tanh(x / bound)
 }
-#Condition design: which successive effects apply to each condition
-XCond = function(cnd){as.numeric(effect_names %in% cond_effs[[cnd]])}
-#Population concentration for a condition
-KappaCond = function(cnd)
+#Design row for a group: each term is a product of condition effects (successive differences: H, A, S)
+#and band indicators (low, high, relative to medium), e.g. H:high, as in the notebooks
+XGroup = function(g, terms)
+{
+  cnd = group_tab[g, 'condition']
+  bnd = group_tab[g, 'band']
+  sapply(terms,
+         function(term)
+         {
+           prod(sapply(strsplit(term, ':')[[1]],
+                       function(q)
+                       {
+                         if(q %in% c('H', 'A', 'S')){q %in% cond_effs_all[[cnd]]}else{bnd == q}
+                       }))
+         })
+}
+#Population concentration for a group
+KappaGroup = function(g)
 {
   eta = kappa0
-  if(length(effect_names)){eta = eta + kappa_eff %*% XCond(cnd)}
+  if(length(kappa_terms)){eta = eta + kappa_eff %*% XGroup(g, kappa_terms)}
   softplus(as.vector(eta))
 }
-#State probabilities for a condition, optionally for an individual: samples x states
+#State probabilities for a group, optionally for an individual: samples x states
 #(an outlier state has its own probability, and the other states share the remainder)
-StateProbs = function(cnd, i = NULL)
+StateProbs = function(g, i = NULL)
 {
   eta = sapply(main_states,
                function(s)
                {
                  if(s == 'forward'){return(rep(0, n_samp))}
                  e = state_int[[s]]
-                 if(!is.null(state_eff[[s]])){e = e + as.vector(state_eff[[s]] %*% XCond(cnd))}
+                 if(!is.null(state_eff[[s]])){e = e + as.vector(state_eff[[s]] %*% XGroup(g, state_terms))}
                  if(!is.null(i)){e = e + ind_state_z[[s]][, i + 1]}
                  e
                })
+  eta = matrix(eta, nrow = n_samp) # also for a single (forward) state
+  colnames(eta) = main_states
   ps = exp(eta - apply(eta, 1, max)) / rowSums(exp(eta - apply(eta, 1, max)))
   if(length(outlier_states))
   {
     e_out = state_int[[outlier_states]]
-    if(!is.null(out_eff)){e_out = e_out + as.vector(out_eff %*% XCond(cnd))}
+    if(!is.null(out_eff)){e_out = e_out + as.vector(out_eff %*% XGroup(g, state_terms))}
     p_out = plogis(e_out)
     ps = cbind(ps * (1 - p_out), p_out)
   }
   ps
+}
+#Panels for plots by group: one row of conditions, or for the joint model one row per band
+#(empty panels where a band has no dances in that condition)
+panel_layout = if(joint)
+{
+  matrix(sapply(bands_all, function(b){ifelse(paste(b, conds, sep = '_') %in% groups, paste(b, conds, sep = '_'), NA)}),
+         nrow = length(bands_all), byrow = TRUE)
+}else
+{
+  matrix(groups, nrow = 1)
+}
+ForPanels = function(fun, ...)
+{
+  par(mfrow = dim(panel_layout), ...)
+  for(g in t(panel_layout)){if(is.na(g)){plot.new()}else{fun(g)}}
 }
 #Expected weight of the forward direction (mu1) in a dance, given its state probabilities:
 #forward dances put all runs at mu1, axial dances a proportion w, reversed dances none.
@@ -512,26 +594,26 @@ WForward = function(ps, w = w_axial)
 For a typical individual (individual effects at zero): the forward direction ($\mu_1$, with the reverse direction $\mu_2 = \mu_1 + 180°$), concentration ($\kappa$, and mean vector length $\rho = A_1(\kappa)$), the probability of each state, and the expected proportion of waggle runs towards $\mu_1$, $w_1 = \pi_\text{forward} + w\,\pi_\text{axial}$ (with an outlier state, the proportion among dances not in it, $w_1 / (1 - \pi_\text{out})$).
 
 ```{r Population predictions}
-pop_draws = lapply(setNames(conds, conds),
-                   function(cnd)
+pop_draws = lapply(setNames(groups, groups),
+                   function(g)
                    {
-                     ps = StateProbs(cnd)
+                     ps = StateProbs(g)
                      colnames(ps) = model_states
-                     list(mu = mu_cond[, cnd],
-                          kappa = KappaCond(cnd),
+                     list(mu = mu_grp[, g],
+                          kappa = KappaGroup(g),
                           p = ps,
                           w1 = WForward(ps))
                    })
 
 pred_table = do.call(rbind,
-                     lapply(conds,
-                            function(cnd)
+                     lapply(groups,
+                            function(g)
                             {
-                              pd = pop_draws[[cnd]]
+                              pd = pop_draws[[g]]
                               mq = QDegDraws(pd$mu)
                               kq = QDraws(pd$kappa)
                               rq = QDraws(A1(pd$kappa), digits = 3)
-                              data.frame(condition = cnd,
+                              data.frame(group = g,
                                          mu_median = mq[1], mu_lower = mq[2], mu_upper = mq[3],
                                          kappa_median = kq[1], kappa_lower = kq[2], kappa_upper = kq[3],
                                          rho_median = rq[1], rho_lower = rq[2], rho_upper = rq[3],
@@ -542,16 +624,16 @@ pred_table = do.call(rbind,
 print(pred_table)
 
 state_table = do.call(rbind,
-                      lapply(conds,
-                             function(cnd)
+                      lapply(groups,
+                             function(g)
                              {
                                do.call(rbind,
                                        lapply(c(model_states, 'w1'),
                                               function(s)
                                               {
-                                                x = if(s == 'w1'){pop_draws[[cnd]]$w1}else{pop_draws[[cnd]]$p[, s]}
+                                                x = if(s == 'w1'){pop_draws[[g]]$w1}else{pop_draws[[g]]$p[, s]}
                                                 q = QDraws(x, digits = 3)
-                                                data.frame(condition = cnd, quantity = s,
+                                                data.frame(group = g, quantity = s,
                                                            median = q[1], lower = q[2], upper = q[3],
                                                            row.names = NULL)
                                               }))
@@ -563,26 +645,27 @@ print(paste('Axial weight w (proportion of runs towards mu1 in axial dances):',
 
 ## State probabilities by condition
 
-Bars show the population-level probability of each state in each condition (median and $95\%$ interval, typical individual); points show the mean posterior state probability across the observed dances in that condition.
+Bars show the population-level probability of each state in each group (median and $95\%$ interval, typical individual); points show the mean posterior state probability across the observed dances in that group.
 
-```{r State probabilities, fig.width = 8, fig.height = 5}
+```{r State probabilities, fig.width = if(params$elevation == 'joint'){12}else{8}, fig.height = 5}
 #mean posterior state probability across observed dances
 p_state_mean = apply(p_state, c(2, 3), mean) # dances x states
-colnames(p_state_mean) = model_states
-par(mar = c(4, 4, 3, 1))
-plot(NULL, xlim = c(0.5, length(conds) + 0.5), ylim = c(0, 1), xaxt = 'n',
+p_state_mean = matrix(p_state_mean, nrow = n_dance, dimnames = list(NULL, model_states))
+par(mar = c(if(joint){8}else{4}, 4, 3, 1))
+plot(NULL, xlim = c(0.5, length(groups) + 0.5), ylim = c(0, 1), xaxt = 'n',
      xlab = '', ylab = 'Probability of state',
      main = paste('Dance states,', params$elevation, 'solar elevation'))
-axis(1, at = seq_along(conds), labels = conds)
+axis(1, at = seq_along(groups), labels = groups, las = if(joint){2}else{1})
+if(joint){abline(v = cumsum(table(group_tab$band)[bands_all])[-length(bands_all)] + 0.5, col = 'gray')}
 width = 0.75 / length(model_states)
 for(j in seq_along(model_states))
 {
   s = model_states[j]
-  xs = seq_along(conds) + (j - (length(model_states) + 1) / 2) * width
-  q = sapply(conds, function(cnd){quantile(pop_draws[[cnd]]$p[, s], c(0.5, 0.025, 0.975))})
+  xs = seq_along(groups) + (j - (length(model_states) + 1) / 2) * width
+  q = sapply(groups, function(g){quantile(pop_draws[[g]]$p[, s], c(0.5, 0.025, 0.975))})
   rect(xs - width / 2, 0, xs + width / 2, q[1, ], col = adjustcolor(state_cols[[s]], alpha.f = 0.8), border = NA)
   arrows(xs, q[2, ], xs, q[3, ], angle = 90, code = 3, length = 0.03)
-  obs = sapply(conds, function(cnd){mean(p_state_mean[dance_tab$condition == cnd, s])})
+  obs = sapply(groups, function(g){mean(p_state_mean[dance_tab$group == g, s])})
   points(xs, obs, pch = 21, bg = 'white')
 }
 legend('topright', legend = model_states, fill = unlist(state_cols[model_states]), border = NA, bty = 'n')
@@ -591,11 +674,30 @@ legend('topright', legend = model_states, fill = unlist(state_cols[model_states]
 ## Effects of condition on states, direction and concentration
 
 Contrasts between successive conditions (the model effects H, A, S) and between each condition and vertical, for a typical individual.
+For the joint model, these are made within each elevation band, followed by contrasts between each band and the medium band for each condition.
 $P(>0)$ is the posterior probability that the quantity increases.
 
 ```{r Condition contrasts}
-contrasts = c(lapply(conds[-1], function(cnd){c(cnd, 'vertical')}),
-              if(length(conds) > 2){lapply(3:length(conds), function(k){c(conds[k], conds[k - 1])})})
+#condition contrasts within a set of groups ordered by condition (vertical first)
+CondContrasts = function(gs)
+{
+  if(length(gs) < 2){return(list())}
+  c(lapply(gs[-1], function(g){c(g, gs[1])}),
+    if(length(gs) > 2){lapply(3:length(gs), function(k){c(gs[k], gs[k - 1])})})
+}
+contrasts = if(joint)
+{
+  c(do.call(c, lapply(bands_all, function(b){CondContrasts(groups[group_tab$band == b])})),
+    do.call(c, lapply(conds,
+                      function(cnd)
+                      {
+                        lapply(intersect(paste(c('low', 'high'), cnd, sep = '_'), groups),
+                               function(g){c(g, paste('medium', cnd, sep = '_'))})
+                      })))
+}else
+{
+  CondContrasts(groups)
+}
 names(contrasts) = sapply(contrasts, paste, collapse = ' - ')
 contrast_table = do.call(rbind,
                          lapply(names(contrasts),
@@ -622,51 +724,63 @@ contrast_table = do.call(rbind,
 print(contrast_table)
 ```
 
-```{r Contrast plots, fig.width = 10, fig.height = 4}
-par(mfrow = c(1, length(model_states)), mar = c(5, 4, 3, 1))
+```{r Contrast plots, fig.width = if(params$elevation == 'joint'){12}else{10}, fig.height = if(params$elevation == 'joint'){12}else{4}}
+if(joint)
+{
+  par(mfrow = c(length(model_states), 1), mar = c(9, 4, 2, 1))
+}else
+{
+  par(mfrow = c(1, length(model_states)), mar = c(5, 4, 3, 1))
+}
 for(s in model_states)
 {
   dl = lapply(contrasts, function(cn){pop_draws[[cn[1]]]$p[, s] - pop_draws[[cn[2]]]$p[, s]})
   plot(NULL, xlim = c(0.5, length(dl) + 0.5), ylim = c(-1, 1), xaxt = 'n',
        xlab = '', ylab = paste('Change in P(', s, ')'), main = s)
-  axis(1, at = seq_along(dl), labels = gsub(' - ', '\n- ', names(dl)), cex.axis = 0.7, padj = 0.5)
+  if(joint)
+  {
+    axis(1, at = seq_along(dl), labels = names(dl), cex.axis = 0.7, las = 2)
+  }else
+  {
+    axis(1, at = seq_along(dl), labels = gsub(' - ', '\n- ', names(dl)), cex.axis = 0.7, padj = 0.5)
+  }
   abline(h = 0, lty = 2)
   for(k in seq_along(dl))
   {
     hst = hist(dl[[k]], breaks = seq(-1, 1, by = 0.02), plot = FALSE)
     dens = 0.4 * hst$density / max(hst$density)
     rect(k - dens, head(hst$breaks, -1), k + dens, hst$breaks[-1],
-         col = adjustcolor(cond_cols[[contrasts[[k]][1]]], alpha.f = 0.5), border = NA)
+         col = adjustcolor(GroupCol(contrasts[[k]][1]), alpha.f = 0.5), border = NA)
   }
 }
 ```
 
 ## Extracting individual- and dance-specific predictions
 
-**Individuals**: for each individual in each condition in which it danced, the forward direction ($\mu_c$ plus the individual's offset) and state probabilities (including the individual's random effects on the state logits), from which the expected proportion of runs towards $\mu_1$ ($w_1$) is calculated.
+**Individuals**: for each individual in each group in which it danced, the forward direction ($\mu_c$ plus the individual's offset) and state probabilities (including the individual's random effects on the state logits), from which the expected proportion of runs towards $\mu_1$ ($w_1$) is calculated.
 
 **Dances**: each dance's forward direction and concentration from the model, and its *posterior* state probabilities given its own waggle runs.
 
 ```{r Extract individual and dance predictions}
-mu_id = kappa_id = w1_id = matrix(NA, nrow = n_ind, ncol = length(conds), dimnames = list(NULL, conds))
+mu_id = kappa_id = w1_id = matrix(NA, nrow = n_ind, ncol = length(groups), dimnames = list(NULL, groups))
 individual_draws = vector('list', n_ind)
 for(i in id_tab$Individual)
 {
   individual_draws[[i + 1]] = list(mu = list(), kappa = list(), w1 = list())
-  for(cnd in conds[id_cond[id_tab$Individual == i, ]])
+  for(g in groups[id_group[id_tab$Individual == i, ]])
   {
     off = mu_ind[, i + 1]
-    mu_i = mu_cond[, cnd] + if(bounded_dirs){Bounded(off)}else{off}
-    ps = StateProbs(cnd, i = i)
+    mu_i = mu_grp[, g] + if(bounded_dirs){Bounded(off)}else{off}
+    ps = StateProbs(g, i = i)
     colnames(ps) = model_states
     w1 = WForward(ps)
-    kp = KappaCond(cnd)
-    individual_draws[[i + 1]]$mu[[cnd]] = mu_i
-    individual_draws[[i + 1]]$kappa[[cnd]] = kp
-    individual_draws[[i + 1]]$w1[[cnd]] = w1
-    mu_id[i + 1, cnd] = MedCDraws(mu_i)
-    kappa_id[i + 1, cnd] = median(kp)
-    w1_id[i + 1, cnd] = median(w1)
+    kp = KappaGroup(g)
+    individual_draws[[i + 1]]$mu[[g]] = mu_i
+    individual_draws[[i + 1]]$kappa[[g]] = kp
+    individual_draws[[i + 1]]$w1[[g]] = w1
+    mu_id[i + 1, g] = MedCDraws(mu_i)
+    kappa_id[i + 1, g] = median(kp)
+    w1_id[i + 1, g] = median(w1)
   }
 }
 
@@ -680,13 +794,13 @@ dance_tab = within(dance_tab,
                      state_map = model_states[apply(ps_d, 1, which.max)]
                      state_prob = apply(ps_d, 1, max)
                    })
-print(table(dance_tab$condition, dance_tab$state_map))
+print(table(dance_tab$group, factor(dance_tab$state_map, levels = model_states)))
 print(paste('Dances assigned with probability < 0.8:', sum(dance_tab$state_prob < 0.8), 'of', n_dance))
 ```
 
 ### Visualising individual predictions
 
-For each bee in each condition: the observed waggle runs, density contours for the population-level mean vector of each mode in that condition (forward mode in red-yellow, reverse mode in blue, opacity scaled by its weight), thin lines for each dance's two modes, and arrows for the individual's two modes.
+For each bee in each condition (for the joint model, only the cells in which it danced): the observed waggle runs, density contours for the population-level mean vector of each mode in that condition (forward mode in red-yellow, reverse mode in blue, opacity scaled by its weight), thin lines for each dance's two modes, and arrows for the individual's two modes.
 Each mode is drawn with length $A_1(\kappa)$ and line width scaled by its weight ($w_1$ and $1 - w_1$), following `PlotMV_circMLE`, with a minimum width of 0.5 so that minor modes remain visible; opacity is also scaled by weight (minimum 25%), so that many overlapping minor modes do not look like a major one.
 
 ```{r Mode plotting functions}
@@ -727,56 +841,55 @@ par(mar = c(0,0,0,0),
 for(i in id_tab$Individual)
 {
   indiv = as.character(id_tab$Individual_label[id_tab$Individual == i])
-  for(cnd in conds)
+  for(g in if(joint){groups[id_group[id_tab$Individual == i, ]]}else{groups})
   {
-    dt_ic = subset(hd, Individual == i & condition %in% cnd)
+    dt_ic = subset(hd, Individual == i & group %in% g)
     if(!nrow(dt_ic))
     {
       plot.new()
-      mtext(text = paste(indiv, '\nno', cnd, 'dances'), side = 1, line = -2)
+      mtext(text = paste(indiv, '\nno', g, 'dances'), side = 1, line = -2)
       next
     }
-    PCfun(angles = dt_ic$angle_deg, col = cond_cols[[cnd]], plot_rho = FALSE,
-          title = paste(indiv, cnd))
-    ModeContours(individual_draws[[i + 1]]$mu[[cnd]],
-                 individual_draws[[i + 1]]$kappa[[cnd]],
-                 individual_draws[[i + 1]]$w1[[cnd]])
+    PCfun(angles = dt_ic$angle_deg, col = GroupCol(g), plot_rho = FALSE,
+          title = paste(indiv, g))
+    ModeContours(individual_draws[[i + 1]]$mu[[g]],
+                 individual_draws[[i + 1]]$kappa[[g]],
+                 individual_draws[[i + 1]]$w1[[g]])
     for(d in unique(dt_ic$Dance))
     {
       ModeArrows(mu_dance_med[d + 1], kappa_dance_med[d + 1], w1_dance[d + 1],
-                 col = cond_cols[[cnd]], lwd = 2)
+                 col = GroupCol(g), lwd = 2)
     }
-    ModeArrows(mu_id[i + 1, cnd], kappa_id[i + 1, cnd], w1_id[i + 1, cnd],
-               col = cond_cols[[cnd]], lwd = 5, length = 0.1/1.25, alpha = 0.8)
+    ModeArrows(mu_id[i + 1, g], kappa_id[i + 1, g], w1_id[i + 1, g],
+               col = GroupCol(g), lwd = 5, length = 0.1/1.25, alpha = 0.8)
   }
 }
 ```
 
 ## Plot population level predictions
 
-For each condition: all waggle runs, each individual's two modes (thin lines), posterior density contours for the population's two modes, and the population's median modes (thick arrows).
+For each group: all waggle runs, each individual's two modes (thin lines), posterior density contours for the population's two modes, and the population's median modes (thick arrows).
 
-```{r Plot population level predictions, fig.height = 5, fig.width = 10}
+```{r Plot population level predictions, fig.height = if(params$elevation == 'joint'){10}else{5}, fig.width = 10}
 par(pty = 's')
-par(mfrow = c(1, length(conds)), mar = c(0,0,0,0))
-for(cnd in conds)
+ForPanels(function(g)
 {
-  PCfun(angles = subset(hd, condition %in% cnd)$angle_deg, col = cond_cols[[cnd]],
-        shrink = 1.5, plot_rho = FALSE, title = cnd)
-  for(i in id_tab$Individual[id_cond[, cnd]])
+  PCfun(angles = subset(hd, group %in% g)$angle_deg, col = GroupCol(g),
+        shrink = 1.5, plot_rho = FALSE, title = g)
+  for(i in id_tab$Individual[id_group[, g]])
   {
-    ModeArrows(mu_id[i + 1, cnd], kappa_id[i + 1, cnd], w1_id[i + 1, cnd],
-               col = cond_cols[[cnd]], lwd = 2)
+    ModeArrows(mu_id[i + 1, g], kappa_id[i + 1, g], w1_id[i + 1, g],
+               col = GroupCol(g), lwd = 2)
   }
-  pd = pop_draws[[cnd]]
+  pd = pop_draws[[g]]
   ModeContours(pd$mu, pd$kappa, pd$w1)
   ModeArrows(MedCDraws(pd$mu), median(pd$kappa), median(pd$w1),
-             col = adjustcolor(cond_cols[[cnd]], offset = c(rep(-0.2, 3), 0)),
+             col = adjustcolor(GroupCol(g), offset = c(rep(-0.2, 3), 0)),
              lwd = 5, length = 0.1/1.25)
-}
-for(cnd in conds)
+}, mar = c(0,0,0,0))
+for(g in groups)
 {
-  print(paste(cnd, 'forward direction (mu1), degrees:', paste(QDegDraws(pop_draws[[cnd]]$mu), collapse = ', ')))
+  print(paste(g, 'forward direction (mu1), degrees:', paste(QDegDraws(pop_draws[[g]]$mu), collapse = ', ')))
 }
 ```
 
@@ -785,7 +898,7 @@ for(cnd in conds)
 Each dance's posterior state probabilities against its unimodal ($R_1$) and axial ($R_2$) mean resultant lengths.
 Colours mix the state colours in proportion to the posterior probability of each state, and point size scales with the number of waggle runs.
 
-```{r Dance states, fig.width = 10, fig.height = 4}
+```{r Dance states, fig.width = 10, fig.height = if(params$elevation == 'joint'){8}else{4}}
 dance_stats = do.call(rbind,
                       lapply(split(hd$angle, hd$Dance),
                              function(a)
@@ -795,37 +908,36 @@ dance_stats = do.call(rbind,
                                           n_runs = length(a))
                              }))
 dance_tab = cbind(dance_tab, dance_stats[as.character(dance_tab$Dance), ])
-par(mfrow = c(1, length(conds)), mar = c(4, 4, 3, 1), pty = 's')
-for(cnd in conds)
+par(pty = 's')
+ForPanels(function(g)
 {
-  sel = dance_tab$condition == cnd
+  sel = dance_tab$group == g
   rgb_mix = ps_d[sel, , drop = FALSE] %*% t(col2rgb(unlist(state_cols[model_states]))) / 255
   plot(dance_tab$R1[sel], dance_tab$R2[sel], xlim = c(0, 1), ylim = c(0, 1),
        pch = 21, bg = rgb(rgb_mix[, 1], rgb_mix[, 2], rgb_mix[, 3], alpha = 0.8),
        cex = 0.6 + 0.08 * dance_tab$n_runs[sel],
-       xlab = expression(R[1] ~ '(unimodal)'), ylab = expression(R[2] ~ '(axial)'), main = cnd)
+       xlab = expression(R[1] ~ '(unimodal)'), ylab = expression(R[2] ~ '(axial)'), main = g)
   abline(a = 0, b = 1, col = 'gray')
-}
+}, mar = c(4, 4, 3, 1))
 legend('bottomright', legend = model_states, pt.bg = unlist(state_cols[model_states]), pch = 21, bty = 'n')
 ```
 
 ## Concentration
 
-Posterior concentration ($\kappa$) of waggle runs around each mode, for a typical dance in each condition.
+Posterior concentration ($\kappa$) of waggle runs around each mode, for a typical dance in each group.
 
-```{r Kappa predictions, fig.width = 8}
-par(mfrow = c(1, length(conds)))
+```{r Kappa predictions, fig.width = 8, fig.height = if(params$elevation == 'joint'){10}else{5}}
 kappa_lim = range(unlist(lapply(pop_draws, `[[`, 'kappa')))
-for(cnd in conds)
+ForPanels(function(g)
 {
-  VertHist(data = pop_draws[[cnd]]$kappa,
-           main = paste0('\n', cnd),
+  VertHist(data = pop_draws[[g]]$kappa,
+           main = paste0('\n', g),
            ylab = 'kappa',
            ylim = kappa_lim,
-           col = adjustcolor(cond_cols[[cnd]], alpha.f = 100/255),
+           col = adjustcolor(GroupCol(g), alpha.f = 100/255),
            cex.axis = 0.7)
-}
-print(pred_table[, c('condition', 'kappa_median', 'kappa_lower', 'kappa_upper', 'rho_median')])
+})
+print(pred_table[, c('group', 'kappa_median', 'kappa_lower', 'kappa_upper', 'rho_median')])
 ```
 
 ## Variation across individuals and dances
@@ -858,14 +970,24 @@ print(sigma_table)
 
 # Model comparison
 
-Leave-one-dance-out cross-validation (PSIS-LOO) for the models fitted in `HS_circGLMM_states.ipynb` with the same direction prior.
+Leave-one-dance-out cross-validation (PSIS-LOO) for the models fitted in `HS_circGLMM_states.ipynb` (or, for the joint model, `HS_circGLMM_states_joint.ipynb`) with the same direction prior.
 Each dance has its own direction, concentration and state, so leaving one out changes the posterior substantially and PSIS is often unreliable (many dances with Pareto $\hat{k} > 0.7$): treat this as provisional, pending K-fold cross-validation.
 
 ```{r Model comparison}
-model_labels = c(unimodal = 'Unimodal (forward only, unbounded offsets)',
-                 two_states = 'Forward/reversed, condition-dependent',
-                 three_states_same = 'Forward/reversed/axial, same in all conditions',
-                 three_states_condition = 'Forward/reversed/axial, condition-dependent')
+model_labels = if(joint)
+{
+  c(unimodal = 'Unimodal (forward only, unbounded offsets)',
+    states_cond = 'States ~ condition',
+    states_cond_band = 'States ~ condition + band',
+    states_cond_x_band = 'States ~ condition * band',
+    states_cond_x_band_fixed = 'States ~ condition * band, directions fixed at the feeder')
+}else
+{
+  c(unimodal = 'Unimodal (forward only, unbounded offsets)',
+    two_states = 'Forward/reversed, condition-dependent',
+    three_states_same = 'Forward/reversed/axial, same in all conditions',
+    three_states_condition = 'Forward/reversed/axial, condition-dependent')
+}
 model_files = file.path(params$model_dir,
                         paste0('HS_states_', params$elevation, '_', params$direction_prior, '_',
                                names(model_labels), '.nc'))
