@@ -922,6 +922,49 @@ ForPanels(function(g)
 legend('bottomright', legend = model_states, pt.bg = unlist(state_cols[model_states]), pch = 21, bty = 'n')
 ```
 
+## Dance-level predictions
+
+Pooling waggle runs from different dances can hide how well each dance is described, so here each dance is plotted separately, ordered by group and individual.
+Each panel shows the dance's waggle runs, the dance's two predicted modes (coloured; forward direction $\mu_d$ and its reverse, each of length $A_1(\kappa_d)$, line width scaled by the expected weight of each mode, $w_1$, given the dance's posterior state probabilities) and, for reference, the population-level modes for its group (gray).
+Where the dance is most probably in an outlier state (unrelated or disoriented), its observed mean direction is shown as a dashed gray line instead, since its runs are not expected around $\mu_d$.
+Each group starts a new figure; panel titles give the individual and dance number (0-based, as in the model), the number of runs, and the most probable state with its posterior probability.
+
+```{r Dance predictions, fig.width = 12, fig.height = 12}
+pop_modes = lapply(pop_draws, function(pd){c(mu = MedCDraws(pd$mu), kappa = median(pd$kappa), w1 = median(pd$w1))})
+for(g in groups)
+{
+  dance_g = subset(dance_tab, group == g)
+  dance_g = dance_g[order(dance_g$Individual_label, dance_g$Dance), ]
+  for(k in seq_len(nrow(dance_g)))
+  {
+    if((k - 1) %% 36 == 0)
+    {
+      par(pty = 's', mfrow = c(6, 6), mar = c(0, 0, 1.5, 0), oma = c(0, 0, 2, 0))
+    }
+    dn = dance_g[k, ]
+    d = dn$Dance
+    runs = subset(hd, Dance == d)$angle_deg
+    PCfun(angles = runs, col = GroupCol(g), plot_rho = FALSE, shrink = 1.3,
+          title = paste0(dn$Individual_label, ' #', d, ', n = ', length(runs), '\n',
+                         dn$state_map, ' (', format(round(dn$state_prob, 2), nsmall = 2), ')'),
+          side = 3, titleline = -0.5)
+    if((k - 1) %% 36 == 0){mtext(g, side = 3, outer = TRUE, line = 0.5, font = 2)}
+    pm = pop_modes[[g]]
+    ModeArrows(pm['mu'], pm['kappa'], pm['w1'], col = 'gray40', lwd = 2, alpha = 0.6)
+    if(dn$state_map %in% outlier_states)
+    {
+      z = mean(exp(1i * rad(runs)))
+      arrows.circular(x = circular(Arg(z), units = 'radians', rotation = 'clock', zero = pi/2),
+                      y = Mod(z), lty = 2, lwd = 3, col = 'gray30', length = 0.08)
+    }else
+    {
+      ModeArrows(mu_dance_med[d + 1], kappa_dance_med[d + 1], w1_dance[d + 1],
+                 col = GroupCol(g), lwd = 4, length = 0.08, alpha = 0.9)
+    }
+  }
+}
+```
+
 ## Concentration
 
 Posterior concentration ($\kappa$) of waggle runs around each mode, for a typical dance in each group.
