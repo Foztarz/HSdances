@@ -181,6 +181,15 @@ Steps so far, and why:
    On PSIS-LOO (see *Model comparison*), the two models with band effects on the state probabilities were best and indistinguishable (`states_cond_band` elpd −2579, `states_cond_x_band` −1, SE 8), and both were better than condition-only state probabilities (−28, SE 9) and than fixed directions (−38, SE 13); the unimodal model could not be distinguished (−28, SE 47).
    As before, these estimates are unreliable (Pareto $\hat{k} > 0.7$ for 236–270 of 312 dances), so leave-individuals-out (grouped K-fold) cross-validation is needed before drawing conclusions, particularly for states versus the unimodal null model: see `HS_circGLMM_states_joint_kfold.ipynb` (about 3.5 hours per fold for four models on a 16 GB PC).
 
+7. **K-fold cross-validation of the joint model (2026 10 27 – 11 06).**
+   Ten folds of 1–6 individuals each (assigned to balance the number of waggle runs, so the four individuals with most runs were alone) were left out in turn, and four of the models were refitted to the remaining individuals (`states_cond` was left out, since it was clearly worse on PSIS-LOO).
+   In the first run (`HS_circGLMM_states_joint_kfold.ipynb`, 4 chains, 500 draws for the predictive density), 4 of the 40 fits had a chain stuck far from the others, and for individuals with many waggle runs the predictive density varied by tens of log units between posterior draws, so a few draws dominated the estimate.
+   All 40 fits were therefore repeated with 6 chains of 1000 draws after 2000 tuning steps, and a fit was accepted only when its chains' mean log posteriors were within 20 of each other, otherwise refitted with a new seed (`HS_circGLMM_states_joint_kfold_fits.ipynb`; 3 of 40 needed a second seed).
+   The predictive density of each left-out individual was then computed from all 6000 draws, with a bootstrap Monte Carlo standard error (`HS_circGLMM_states_joint_kfold_lpd.ipynb`).
+
+   Result (see *Model comparison*): the state models predicted new individuals far better than the unimodal null model (`states_cond_x_band` ahead by 229, SE 66), directions fixed at the feeder were clearly worse than estimated directions (−55, SE 21), and the two band models could not be clearly separated (`states_cond_x_band` ahead of `states_cond_band` by 5.6, SE 3.7).
+   Monte Carlo error was small by comparison (at most 0.8 for any difference).
+
 # Set up workspace
 
 To extract these models, we need to load the appropriate functions.
@@ -1014,7 +1023,7 @@ print(sigma_table)
 # Model comparison
 
 Leave-one-dance-out cross-validation (PSIS-LOO) for the models fitted in `HS_circGLMM_states.ipynb` (or, for the joint model, `HS_circGLMM_states_joint.ipynb`) with the same direction prior.
-Each dance has its own direction, concentration and state, so leaving one out changes the posterior substantially and PSIS is often unreliable (many dances with Pareto $\hat{k} > 0.7$): treat this as provisional, pending K-fold cross-validation.
+Each dance has its own direction, concentration and state, so leaving one out changes the posterior substantially and PSIS is often unreliable (many dances with Pareto $\hat{k} > 0.7$): treat this as provisional, and for the joint model see *K-fold cross-validation* below.
 
 ```{r Model comparison}
 model_labels = if(joint)
@@ -1051,6 +1060,78 @@ for(nm in names(loo_list))
 {
   k = reticulate::py_to_r(loo_list[[nm]]$pareto_k$values)
   print(paste0(nm, ': ', sum(k > 0.7), ' of ', length(k), ' dances with Pareto k > 0.7'))
+}
+```
+
+## K-fold cross-validation
+
+For the joint model, whole individuals were left out in turn (10 folds of 1–6 individuals, balanced by waggle runs), so that each model is judged on how well it predicts the dances of a new bee.
+Each model was refitted without the left-out individuals (`HS_circGLMM_states_joint_kfold_fits.ipynb`: 6 chains of 1000 draws after 2000 tuning steps, accepted only when the chains' mean log posteriors were within 20 of each other, otherwise refitted with a new seed).
+The log predictive density (lpd) of all of a left-out individual's waggle runs was then averaged over all 6000 posterior draws (`HS_circGLMM_states_joint_kfold_lpd.ipynb`), integrating over that individual's effects (16 samples per draw from their population distribution), each dance's direction offset (a grid of 121 points) and its concentration effect (8 Gauss–Hermite nodes).
+For individuals with many runs, the density varies by tens of log units between posterior draws, so a few draws dominate; each lpd therefore has a Monte Carlo standard error (bootstrap over draws), which is too small when the effective number of draws (`ess_draws`) is very small.
+
+The models are ranked by their summed lpd (elpd); `se_diff` is the standard error of the difference from the best model across individuals, and `se_mc_diff` the Monte Carlo standard error of that difference.
+
+```{r K-fold comparison}
+kfold_file = file.path(params$model_dir,
+                       paste0('HS_states_', params$elevation, '_', params$direction_prior, '_kfold_lpd.csv'))
+kfold_fits_file = sub('_lpd.csv$', '_fits.csv', kfold_file)
+if(file.exists(kfold_file))
+{
+  kf = read.csv(kfold_file)
+  #one row per individual, one column per model
+  lpd_ind = tapply(kf$lpd, list(kf$individual, kf$model), sum)
+  se_mc_ind = tapply(kf$se_mc, list(kf$individual, kf$model), sum)
+  elpd = sort(colSums(lpd_ind), decreasing = TRUE)
+  best = names(elpd)[1]
+  diff_ind = lpd_ind[, names(elpd)] - lpd_ind[, best]
+  kfold_comparison = data.frame(elpd = elpd,
+                                elpd_diff = elpd - elpd[best],
+                                se_diff = apply(diff_ind, 2, function(d){sqrt(length(d) * var(d))}),
+                                se_mc_diff = sapply(names(elpd), function(m)
+                                {
+                                  if(m == best){0}else{sqrt(sum(se_mc_ind[, m]^2 + se_mc_ind[, best]^2))}
+                                }),
+                                row.names = model_labels[names(elpd)])
+  kfold_comparison$diff_over_se = with(kfold_comparison, ifelse(se_diff > 0, elpd_diff / se_diff, NA))
+  print(paste(nrow(lpd_ind), 'individuals in', length(unique(kf$fold)), 'folds'))
+  print(kfold_comparison, digits = 3)
+  print(paste0('largest Monte Carlo SE of an individual lpd: ', round(max(kf$se_mc), 2),
+               '; individual lpds with fewer than 10 effective draws: ', sum(kf$ess_draws < 10),
+               ' of ', nrow(kf)))
+}else
+{
+  print(paste('No K-fold results for this analysis:', kfold_file))
+}
+if(file.exists(kfold_fits_file))
+{
+  kfits = read.csv(kfold_fits_file)
+  #the fit used for each fold and model: the one whose chains agreed best
+  kfits = kfits[order(kfits$fold, kfits$model, kfits$chain_logp_range), ]
+  used = kfits[!duplicated(kfits[, c('fold', 'model')]), ]
+  print(paste0(nrow(used), ' fits used, ', sum(used$chain_logp_range > 20), ' with chains more than 20 apart; ',
+               nrow(kfits) - nrow(used), ' rejected fits refitted with a new seed; ',
+               sum(used$divergences), ' divergences; largest range of chain mean log posteriors: ',
+               round(max(used$chain_logp_range), 1)))
+}
+```
+
+Most of the difference between models comes from a few individuals with many dances, so the difference of each individual's lpd from that of the best model is plotted against its number of waggle runs.
+
+```{r K-fold individuals, fig.width = 7, fig.height = 5}
+if(file.exists(kfold_file))
+{
+  runs_ind = tapply(kf$n_runs, kf$individual, max)[rownames(diff_ind)]
+  others = setdiff(names(elpd), best)
+  kfold_cols = setNames(c('#1b9e77', '#d95f02', '#7570b3', '#e7298a')[seq_along(others)], others)
+  plot(NULL, xlim = range(runs_ind), ylim = range(diff_ind[, others]), log = 'x',
+       xlab = 'waggle runs of the left-out individual', ylab = paste('lpd difference from', best))
+  abline(h = 0, col = 'gray')
+  for(m in others)
+  {
+    points(runs_ind, diff_ind[, m], pch = 21, bg = adjustcolor(kfold_cols[m], 0.7), col = 'white', cex = 1.3)
+  }
+  legend('bottomleft', legend = model_labels[others], pt.bg = kfold_cols, pch = 21, bty = 'n', cex = 0.8)
 }
 ```
 
