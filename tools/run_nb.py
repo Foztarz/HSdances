@@ -1,7 +1,7 @@
 """Execute a notebook cell by cell with jupyter_client (no nbconvert in HS-env).
 Usage: python run_nb.py in.ipynb out.ipynb workdir [name=value ...]
 Each name=value replaces the line starting 'name =' in the first code cell defining it."""
-import json, sys, re, time, queue
+import json, os, sys, re, time, queue
 from jupyter_client.manager import start_new_kernel
 
 src, dst, workdir, *overrides = sys.argv[1:]
@@ -33,7 +33,7 @@ try:
         outs, err = [], False
         while True:
             try:
-                m = kc.get_iopub_msg(timeout=3600 * 6)
+                m = kc.get_iopub_msg(timeout=3600 * float(os.environ.get('RUN_NB_TIMEOUT_H', 6)))
             except queue.Empty:
                 raise RuntimeError('timeout')
             if m['parent_header'].get('msg_id') != msg_id:

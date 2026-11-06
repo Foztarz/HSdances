@@ -1,0 +1,33 @@
+
+===== start 2026-11-05 19:34:25 =====
+set setup_notebook = '2Results/state_models/kfold_lpd_20261103/frozen_HS_circGLMM_states_joint.ipynb'
+[cell 2 / code 1] start
+[cell 2] done in 0s
+[cell 3 / code 2] start
+[cell 3] done in 0s
+[cell 4 / code 3] start
+[cell 4] done in 18s
+[cell 6 / code 4] start
+[cell 6] done in 0s
+[cell 8 / code 5] start
+[cell 8] done in 0s
+[cell 10 / code 6] start
+[cell 10] done in 0s
+[cell 12 / code 7] start
+[cell 12] done in 0s
+[cell 14 / code 8] start
+   /opt/miniconda3/envs/HS-env/lib/python3.12/site-packages/arviz/stats/stats.py:1039: RuntimeWarning: overflow encountered in exp
+  weights = 1 / np.exp(len_scale - len_scale[:, None]).sum(axis=1)
+   /opt/miniconda3/envs/HS-env/lib/python3.12/site-packages/numpy/core/_methods.py:49: RuntimeWarning: overflow encountered in reduce
+  return umr_sum(a, axis, dtype, out, keepdims, initial, where)
+   /opt/miniconda3/envs/HS-env/lib/python3.12/site-packages/arviz/stats/stats.py:1039: RuntimeWarning: overflow encountered in exp
+  weights = 1 / np.exp(len_scale - len_scale[:, None]).sum(axis=1)
+   /opt/miniconda3/envs/HS-env/lib/python3.12/site-packages/arviz/stats/stats.py:1039: RuntimeWarning: overflow encountered in exp
+  weights = 1 / np.exp(len_scale - len_scale[:, None]).sum(axis=1)
+/opt/miniconda3/envs/HS-env/lib/python3.12/site-packages/numpy/core/_methods.py:49: RuntimeWarning: overf
+   /opt/miniconda3/envs/HS-env/lib/python3.12/site-packages/arviz/stats/stats.py:1039: RuntimeWarning: overflow encountered in exp
+  weights = 1 / np.exp(len_scale - len_scale[:, None]).sum(axis=1)
+[cell 14] done in 33003s
+[cell 16 / code 9] start
+[cell 16] done in 0s
+finished

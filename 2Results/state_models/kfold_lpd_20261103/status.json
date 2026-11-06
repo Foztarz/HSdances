@@ -1,0 +1,26 @@
+{
+ "state": "finished",
+ "restarts": 0,
+ "deadline": "2026-11-07T19:34:25",
+ "pid": null,
+ "critical": [],
+ "warnings": [],
+ "thermostat_cooling": false,
+ "running_share_last_hour": 0.85,
+ "metrics": {
+  "time": "2026-11-06T04:45:16",
+  "cpu_temp": 76.6,
+  "batt_temp": 26.7,
+  "speed_limit": 100,
+  "thermal_warning": 0,
+  "mem_pressure": 1,
+  "mem_avail_gb": 15.66888427734375,
+  "swap_gb": 0.0009765625,
+  "load5": 1.96533203125,
+  "disk_free_gb": 13.86965560913086,
+  "on_battery": false,
+  "battery_pct": 79,
+  "run_rss_gb": 0.0,
+  "total_gb": 32.0
+ }
+}

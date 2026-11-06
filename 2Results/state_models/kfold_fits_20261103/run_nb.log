@@ -1,0 +1,18 @@
+
+===== start 2026-11-03 20:42:44 =====
+set setup_notebook = '2Results/state_models/kfold_fits_20261103/frozen_HS_circGLMM_states_joint.ipynb'
+[cell 2 / code 1] start
+[cell 2] done in 0s
+[cell 3 / code 2] start
+[cell 3] done in 0s
+[cell 4 / code 3] start
+[cell 4] done in 3s
+[cell 6 / code 4] start
+[cell 6] done in 0s
+[cell 8 / code 5] start
+[cell 8] done in 0s
+[cell 10 / code 6] start
+[cell 10] done in 168634s
+[cell 12 / code 7] start
+[cell 12] done in 0s
+finished

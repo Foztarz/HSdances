@@ -1,0 +1,8 @@
+2026-11-03 20:42:44  watchdog started; deadline 2026-11-06 20:42; notebook 2Results/state_models/kfold_fits_20261103/frozen_HS_circGLMM_states_joint_kfold_fits.ipynb
+2026-11-03 20:42:44  started run (pid 63085), restarts so far 0
+2026-11-04 16:42:42  PAUSED: CPU mean 100 °C
+2026-11-04 16:53:13  resumed after 11 min pause
+2026-11-05 04:04:21  PAUSED: CPU mean 100 °C
+2026-11-05 04:14:53  resumed after 11 min pause
+2026-11-05 19:33:40  run FINISHED successfully
+2026-11-05 19:33:40  watchdog exiting (finished)
