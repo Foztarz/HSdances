@@ -190,6 +190,50 @@ Steps so far, and why:
    Result (see *Model comparison*): the state models predicted new individuals far better than the unimodal null model (`states_cond_x_band` ahead by 229, SE 66), directions fixed at the feeder were clearly worse than estimated directions (−55, SE 21), and the two band models could not be clearly separated (`states_cond_x_band` ahead of `states_cond_band` by 5.6, SE 3.7).
    Monte Carlo error was small by comparison (at most 0.8 for any difference).
 
+8. **Final full-data fits of the joint model (2026 11 09).**
+   All five models were refitted with the K-fold settings (6 chains of 1000 draws after 2000 tuning steps, accepted only if the chains' mean log posteriors were within 20 of each other, otherwise refitted with a new seed; `tools/make_joint_nb.py`, run in `2Results/state_models/joint_fit_20261109/`, fit log `HS_states_joint_bounded_vm_unrelated_fits.csv`).
+   Every model was accepted with its first seed (chain ranges 2.8–13.0), with no divergences; max $\hat{R}$ 1.02–1.08 (the largest, 1.08, for the medium-antisolar direction of `states_cond_x_band`, bulk ESS 71).
+   Cell directions and state probabilities were within a few degrees and 0.01 of the earlier fits.
+   On PSIS-LOO `states_cond_x_band` now ranked first (`states_cond_band` −12, SE 8; unimodal −27, SE 46; `states_cond` −38, SE 10; fixed directions −54, SE 14), still with Pareto $\hat{k} > 0.7$ for 224–272 of 312 dances, so the K-fold comparison above is the one to rely on.
+   These fits are the ones summarised here, and the hypotheses are tested in *Hypothesis tests*.
+
+# Hypotheses
+
+The study's main hypotheses, and how each is tested with the joint model (`elevation: "joint"`) in *Hypothesis tests* below.
+All are judged at the population level, for a typical individual (individual effects at zero).
+$w_1$ is the expected proportion of a dance's waggle runs towards the forward direction $\mu_1$, i.e. towards the feeder side (see *Population-level predictions for each condition*).
+A dance "points away from the feeder" when most of its runs point towards $\mu_1 + 180°$ ($w_1 < 0.5$).
+
+**Baseline for similar directions.**
+From the literature, dances on vertical and horizontal combs at medium elevations are expected to point in the same direction (towards the feeder), so the difference between their forward directions, $\Delta\mu_\text{base}$ = medium horizontal − medium vertical, is taken as the size of a difference that still counts as "similar".
+Any other pair of conditions is compared with this baseline draw by draw: $|\Delta\mu| - |\Delta\mu_\text{base}|$, with the probability that it is $\le 0$ (no larger than the baseline).
+Values of $P$ near 0.5 or above mean the pair is as similar as vertical and horizontal dances at medium elevation; values near 0 mean a clearly larger difference.
+Vertical dances share one direction in every band (a premise of the joint model), so their direction is not compared between elevations.
+
+Main hypotheses:
+
+1. **Medium elevations: vertical and horizontal dances point in similar directions** (the baseline).
+   Both should be predominantly forward ($w_1 > 0.5$); their difference in direction defines the baseline, rather than being tested against it.
+   This is also the premise of `HS_circGLMM_summary.Rmd` and `HS_circGLMM_summary_4cond.Rmd` (dances on a horizontal comb are oriented directly towards the feeder).
+2. **Medium and high elevations: solar dances point away from the feeder**, i.e. solar skylight is mistaken for antisolar skylight, resulting in a 180° turn (`HS_ExploratoryPlots.Rmd`).
+   Most runs should point away from the feeder ($w_1 < 0.5$), reversed dances should be more likely than forward dances, $w_1$ should be lower than for vertical dances at the same elevation, and the solar axis should be as similar to the vertical direction as the baseline.
+3. **Low elevations: horizontal and zenith dances are bimodal.**
+   Axial (bimodal) dances should be the most likely state ($P(\text{axial}) > 0.5$, and more likely than forward) and more likely than for vertical dances at the same elevation, as in the hypothesis of `HS_circGLMM_summary_mixture_lowel.Rmd` (horizontal dances are more likely to be bimodal than vertical dances); the axis of horizontal dances should be as similar to vertical as the baseline.
+   **Zenith dances cannot be tested with the joint model**: only 5 were recorded (4 bees, 43 waggle runs, all at low elevation), and they were excluded, as was low-elevation antisolar (see `HS_circGLMM_states_joint.ipynb`).
+4. **High elevations: horizontal dances point away from the feeder.**
+   As for solar dances in 2: $w_1 < 0.5$, reversed more likely than forward, $w_1$ lower than for horizontal dances at medium elevation (where they are the baseline), and the axis as similar to vertical as the baseline.
+
+Further hypotheses, from earlier analyses:
+
+5. **Medium and high elevations: antisolar dances point towards the feeder**, like vertical and horizontal dances (`HS_ExploratoryPlots.Rmd`: "with antisolar skylight the waggle runs are also aligned").
+   $w_1 > 0.5$, and the direction as similar to vertical as the baseline.
+6. **Solar and antisolar dances share the same axis** (`HS_dance_pair_66b.Rmd`: one bee danced under both within 10 minutes at high elevation; `HS_ExploratoryPlots.Rmd`: a 180° turn), even though their states differ: $|\Delta\mu|$ = solar − antisolar compared with the baseline, at medium and high elevations.
+
+Model comparison bears on these too: if the state models did not predict new individuals better than the unimodal null model, there would be no evidence for reversed or bimodal dances (2–4); and if directions fixed at the feeder predicted as well as estimated directions, dances would point at the feeder in every cell.
+Whether state probabilities depend on elevation at all (band effects, implied by 2–4) is answered only by PSIS-LOO and the band contrasts, since the model without band effects on states (`states_cond`) was left out of K-fold cross-validation.
+
+`HS_ExploratoryPlots.Rmd` also raises questions that this model cannot address, since it has no effect of time of day: whether the bees' internal solar ephemeris lags the true one (slow to adjust after 11:00 and in the afternoon), and whether horizontal dances, with a view of the sky, show the same ephemeris error as vertical dances.
+
 # Set up workspace
 
 To extract these models, we need to load the appropriate functions.
@@ -1134,6 +1178,166 @@ if(file.exists(kfold_file))
   legend('bottomleft', legend = model_labels[others], pt.bg = kfold_cols, pch = 21, bty = 'n', cex = 0.8)
 }
 ```
+
+# Hypothesis tests
+
+Each hypothesis in *Hypotheses* is tested with the posterior of the summarised model (population level, typical individual).
+`P` is the posterior probability that the stated test is true.
+For directions, `|dmu| - |base| (°)` is the absolute difference in forward direction minus that between horizontal and vertical dances at medium elevation (the baseline), draw by draw; `P` for `<= 0` near 0.5 or above means as similar as the baseline.
+Tests whose groups were not fitted (e.g. a single-elevation model, or zenith dances) are left out.
+
+```{r Hypothesis tests}
+#one row of the hypothesis table: posterior summary of draws x, and P(test)
+HypRow = function(hypothesis, quantity, x, test, p, circ = FALSE)
+{
+  q = if(circ){QDegDraws(x)}else{QDraws(x, digits = 3)}
+  data.frame(hypothesis = hypothesis, quantity = quantity,
+             median = q[1], lower = q[2], upper = q[3],
+             test = test, P = round(mean(p), 3),
+             row.names = NULL)
+}
+Has = function(...){all(c(...) %in% groups)}
+St = function(g, s){pop_draws[[g]]$p[, s]}
+W1 = function(g){pop_draws[[g]]$w1}
+DMu = function(g1, g0){mod_circular(pop_draws[[g1]]$mu - pop_draws[[g0]]$mu)}
+#group name for a band and condition (for a single-elevation model, only its own band)
+pfx = if(joint){function(b, cnd){paste(b, cnd, sep = '_')}}else{function(b, cnd){if(b == params$elevation){cnd}else{NA}}}
+
+#baseline for similar directions: horizontal - vertical at medium elevation
+g_bv = pfx('medium', 'vertical'); g_bh = pfx('medium', 'horizontal')
+base_dmu = if(Has(g_bv, g_bh)){DMu(g_bh, g_bv)}else{NULL}
+#is the direction difference g1 - g0 no larger than the baseline?
+Similar = function(h, g1, g0)
+{
+  if(is.null(base_dmu) || !Has(g1, g0)){return(list())}
+  x = abs(deg(DMu(g1, g0))) - abs(deg(base_dmu))
+  list(HypRow(h, paste0('mu ', g1, ' - ', g0, ' (°)'), DMu(g1, g0), '', NA, circ = TRUE),
+       HypRow(h, '|dmu| - |base| (°)', x, '<= 0', x <= 0))
+}
+#a condition points away from the feeder
+Away = function(h, g)
+{
+  list(HypRow(h, paste('w1', g), W1(g), 'w1 < 0.5', W1(g) < 0.5),
+       HypRow(h, 'P(reversed) - P(forward)', St(g, 'reversed') - St(g, 'forward'), '> 0',
+              St(g, 'reversed') > St(g, 'forward')))
+}
+
+hyp_rows = list()
+#1. medium: vertical and horizontal point in similar directions (the baseline)
+if(Has(g_bv, g_bh))
+{
+  h = '1. medium: V ~ H (baseline)'
+  hyp_rows = c(hyp_rows, list(
+    HypRow(h, paste('w1', g_bv), W1(g_bv), 'w1 > 0.5', W1(g_bv) > 0.5),
+    HypRow(h, paste('w1', g_bh), W1(g_bh), 'w1 > 0.5', W1(g_bh) > 0.5),
+    HypRow(h, 'baseline: mu H - V (°)', base_dmu, '', NA, circ = TRUE)))
+}
+#2. medium and high: solar points away from the feeder, on the vertical axis
+for(b in c('medium', 'high'))
+{
+  gs = pfx(b, 'solar'); gv = pfx(b, 'vertical')
+  if(!Has(gs)){next}
+  h = paste0('2. ', b, ': solar away')
+  hyp_rows = c(hyp_rows, Away(h, gs))
+  if(Has(gv))
+  {
+    hyp_rows = c(hyp_rows, list(
+      HypRow(h, 'w1 solar - vertical', W1(gs) - W1(gv), '< 0', W1(gs) < W1(gv))),
+      Similar(h, gs, gv))
+  }
+}
+#3. low: horizontal (and zenith) dances are bimodal, on the vertical axis
+gv = pfx('low', 'vertical')
+for(cnd in c('horizontal', 'zenith'))
+{
+  g = pfx('low', cnd)
+  if(!Has(g)){next}
+  h = paste0('3. low: ', cnd, ' bimodal')
+  hyp_rows = c(hyp_rows, list(
+    HypRow(h, 'P(axial)', St(g, 'axial'), '> 0.5', St(g, 'axial') > 0.5),
+    HypRow(h, 'P(axial) - P(forward)', St(g, 'axial') - St(g, 'forward'), '> 0',
+           St(g, 'axial') > St(g, 'forward'))))
+  if(Has(gv))
+  {
+    hyp_rows = c(hyp_rows, list(
+      HypRow(h, 'P(axial) - vertical', St(g, 'axial') - St(gv, 'axial'), '> 0',
+             St(g, 'axial') > St(gv, 'axial'))),
+      Similar(h, g, gv))
+  }
+}
+#4. high: horizontal dances point away from the feeder, on the vertical axis
+g = pfx('high', 'horizontal')
+if(Has(g))
+{
+  h = '4. high: horizontal away'
+  hyp_rows = c(hyp_rows, Away(h, g))
+  if(Has(g_bh))
+  {
+    hyp_rows = c(hyp_rows, list(
+      HypRow(h, 'w1 high - medium horizontal', W1(g) - W1(g_bh), '< 0', W1(g) < W1(g_bh))))
+  }
+  hyp_rows = c(hyp_rows, Similar(h, g, pfx('high', 'vertical')))
+}
+#5. medium and high: antisolar dances point towards the feeder, like vertical dances
+for(b in c('medium', 'high'))
+{
+  ga = pfx(b, 'antisolar')
+  if(!Has(ga)){next}
+  h = paste0('5. ', b, ': antisolar towards')
+  hyp_rows = c(hyp_rows, list(HypRow(h, paste('w1', ga), W1(ga), 'w1 > 0.5', W1(ga) > 0.5)),
+               Similar(h, ga, pfx(b, 'vertical')))
+}
+#6. solar and antisolar dances share the same axis
+for(b in c('medium', 'high'))
+{
+  hyp_rows = c(hyp_rows, Similar(paste0('6. ', b, ': S ~ A axis'), pfx(b, 'solar'), pfx(b, 'antisolar')))
+}
+hypothesis_table = do.call(rbind, hyp_rows)
+print(hypothesis_table)
+if(is.null(base_dmu))
+{
+  print('No medium-elevation vertical and horizontal dances in this model, so directions are not compared with the baseline.')
+}
+if(!Has(pfx('low', 'zenith')))
+{
+  print('Zenith dances were not included in this model, so hypothesis 3 is tested for horizontal dances only.')
+}
+```
+
+## Conclusions
+
+For the joint model (`states_cond_x_band`, the best model on K-fold cross-validation; full-data fit of 2026 11 09, K-fold of 2026 11 06).
+Numbers are medians (95% intervals) and posterior probabilities `P` from *Hypothesis tests*, *Population-level predictions* and *Effects of condition*.
+
+- **Model comparison.** Predicting the dances of new bees, the state models were far better than the unimodal null model (229, SE 66), so reversed and bimodal dances are a real feature of the data, not described as well by forward dances with variable directions.
+  Directions fixed at the feeder were clearly worse than estimated directions (−55, SE 21).
+- **1. Medium elevations, vertical and horizontal (baseline).**
+  Both were predominantly forward ($w_1$ 0.98 and 0.92, P = 1.00), with few reversed or axial dances, and their forward directions differed by −33° (−41° to −25°; −24° vs +9° from the feeder).
+  This sets a broad baseline: differences of up to about 40° count as "similar".
+- **2. Solar dances point away from the feeder: supported at high elevation, and at medium elevation with slightly less certainty.**
+  High: reversed 0.95 (0.78–0.99), $w_1$ 0.02 (0.00–0.11), P($w_1 < 0.5$) = 1.00.
+  Medium: reversed 0.72 (0.38–0.92), $w_1$ 0.22 (0.05–0.51), P($w_1 < 0.5$) = 0.97, P(reversed > forward) = 0.99.
+  At both elevations the solar axis was closer to the vertical direction than the baseline (+18°, +1° to +35°, P = 0.94; and +18°, +5° to +35°, P = 0.94), as expected for a 180° turn.
+- **3. Low elevations, horizontal dances bimodal: supported** (zenith dances not tested).
+  Axial was the most likely state (0.58, 0.41–0.75; P(axial > forward) = 0.96), though whether it is a majority is less certain (P(axial > 0.5) = 0.83).
+  Axial dances were far more likely than for vertical dances (+0.54, 0.36–0.71, P = 1.00) or for horizontal dances at medium elevation (+0.50).
+  Their axis differed from vertical by about as much as the baseline (−31°, −39° to −23°, P = 0.68).
+  Axial dances were asymmetric: 73% (69%–74%) of their runs pointed forward, close to the upper bound of 75%.
+  Reversed dances were rare at low elevations (0.06, 0.00–0.17): there the departure from forward dances is bimodality, not reversal.
+- **4. High elevations, horizontal dances point away from the feeder: supported, less clearly than for solar dances.**
+  Reversed 0.63 (0.34–0.84), forward 0.26 (0.09–0.51), $w_1$ 0.31 (0.11–0.59), P($w_1 < 0.5$) = 0.92, P(reversed > forward) = 0.92.
+  $w_1$ was much lower than at medium elevation (−0.61, −0.81 to −0.33, P = 1.00), and the axis differed from vertical by about as much as the baseline (−28°, −43° to −13°, P = 0.74).
+- **5. Antisolar dances point towards the feeder: supported.**
+  Medium: $w_1$ 0.83 (0.69–0.92, P = 1.00), reversed 0.06, though a third of dances were axial (0.34).
+  High: $w_1$ 0.71 (0.49–0.87, P = 0.97), with more reversed dances (0.23, 0.08–0.45).
+  Directions were closer to vertical than the baseline (−14°, −29° to +16°, P = 0.99; and +17°, +4° to +29°, P = 0.98).
+- **6. Solar and antisolar on the same axis: supported at high elevation, as similar as the baseline at medium.**
+  High: +2° (−15° to +22°, P = 1.00). Medium: +30° (−1° to +52°, P = 0.59), about the size of the baseline.
+- **Limitations.**
+  The baseline is broad, so "similar" admits differences of 30°–40°; some pairs not covered by the hypotheses differ by more (e.g. high antisolar − high horizontal, +45°, +26° to +63°).
+  Zenith dances were not modelled.
+  Whether state probabilities depend on elevation at all rests on PSIS-LOO (condition-only states −38, SE 10; unreliable, see *Model comparison*) and the band contrasts, since `states_cond` was not included in K-fold cross-validation.
+  The medium-antisolar direction mixed least well ($\hat{R}$ = 1.08, bulk ESS 71), so its interval is the least precise.
 
 # Appendix
 

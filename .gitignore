@@ -2,3 +2,12 @@
 .Rhistory
 .RData
 .Ruserdata
+
+.DS_Store
+# k-fold posteriors (135 MB of binary files; back up outside git)
+2Results/state_models/kfold_posteriors_*/
+__pycache__/
+# compiled from tools/watchdog/smc_temp.c (see its header)
+tools/watchdog/smc_temp
+# full-data model fits (~2 GB; back up outside git)
+2Results/state_models/*.nc

@@ -1,0 +1,6 @@
+2026-11-09 13:02:37  watchdog started; deadline 2026-11-10 13:02; notebook 2Results/state_models/joint_fit_20261109/frozen_HS_circGLMM_states_joint.ipynb
+2026-11-09 13:02:37  started run (pid 2947), restarts so far 0
+2026-11-09 15:42:14  PAUSED: CPU mean 100 °C
+2026-11-09 16:03:17  resumed after 21 min pause
+2026-11-09 19:10:36  run FINISHED successfully
+2026-11-09 19:10:36  watchdog exiting (finished)

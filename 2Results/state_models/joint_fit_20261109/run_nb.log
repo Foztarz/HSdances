@@ -1,0 +1,31 @@
+
+===== start 2026-11-09 13:02:37 =====
+[cell 2 / code 1] start
+[cell 2] done in 0s
+[cell 4 / code 2] start
+[cell 4] done in 0s
+[cell 6 / code 3] start
+[cell 6] done in 1s
+[cell 8 / code 4] start
+[cell 8] done in 0s
+[cell 10 / code 5] start
+[cell 10] done in 3s
+[cell 12 / code 6] start
+[cell 12] done in 0s
+[cell 14 / code 7] start
+[cell 14] done in 2s
+[cell 16 / code 8] start
+[cell 16] done in 22040s
+[cell 18 / code 9] start
+   /opt/miniconda3/envs/HS-env/lib/python3.12/site-packages/arviz/stats/diagnostics.py:596: RuntimeWarning: invalid value encountered in scalar divide
+  (between_chain_variance / within_chain_variance + num_samples - 1) / (num_samples)
+[cell 18] done in 18s
+[cell 19 / code 10] start
+[cell 19] done in 0s
+[cell 21 / code 11] start
+[cell 21] done in 0s
+[cell 23 / code 12] start
+[cell 23] done in 0s
+[cell 25 / code 13] start
+[cell 25] done in 10s
+finished

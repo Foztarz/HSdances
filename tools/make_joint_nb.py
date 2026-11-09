@@ -50,6 +50,7 @@ md(r"""
 - `reference_band`: the band in which condition effects are defined (medium, the only band with all four conditions); band effects and condition × band interactions are relative to it.
 - `direction_prior`, `condition_bound`, `outlier_state`, `data_inits`: as in `HS_circGLMM_states.ipynb`.
 - `models_to_fit`: which models (below) to fit; with `skip_existing`, models already saved are loaded instead.
+- Sampling as for the K-fold fits (`HS_circGLMM_states_joint_kfold_fits.ipynb`): 6 chains of 1000 draws after 2000 tuning steps; a fit is accepted only if its chains' mean log posteriors are within `logp_threshold` of each other, otherwise it is repeated with a new seed (up to `max_attempts` fits), keeping the fit whose chains agree best.
 """),
 code(r"""
 bands = {'low': (-90, 15), 'medium': (30, 45), 'high': (75, 90)} # degrees, exclusive
@@ -64,23 +65,24 @@ direction_prior = 'bounded_vm' # bounded condition directions and dance offsets,
 condition_bound = 'feeder' # each condition's direction within 60° of the feeder
 outlier_state = 'unrelated' # 'unrelated', 'disoriented' or None
 data_inits = True
-models_to_fit = ['states_cond_x_band']
+models_to_fit = ['unimodal', 'states_cond', 'states_cond_band', 'states_cond_x_band', 'states_cond_x_band_fixed']
 skip_existing = True # load models already saved with this fit_tag instead of refitting
 
 sampler = "nutpie"
 n_draws = 1000
-n_tune = 1000
-n_chains = 4 # 8 chains ran out of memory (16 GB) with 312 dances
+n_tune = 2000
+n_chains = 6 # as for the K-fold fits (32 GB Mac); 8 chains ran out of memory on a 16 GB PC with 312 dances
 target_accept = 0.95
 random_seed = 20261021
-logp_threshold = 20 # chains this far below the best (mean log posterior) are flagged, not dropped
+logp_threshold = 20 # a fit is accepted if its chains' mean log posteriors are within this of each other
+max_attempts = 3 # fits (seeds random_seed + 1000 * attempt) before keeping the best that was found
 fit_tag = f'{direction_prior}_{outlier_state}' if outlier_state else direction_prior
 """),
 md(r"""
 # Data
 """),
 code(r"""
-import os
+import os, time
 import numpy as np
 import pandas as pd
 
@@ -392,7 +394,8 @@ for k, m in models.items():
 """),
 md(r"""
 # Fit the models
-All chains are kept; chains whose mean log posterior is more than `logp_threshold` below the best are reported.
+All chains are kept. If the chains' mean log posteriors span more than `logp_threshold`, the model is refitted with a new seed, up to `max_attempts` fits, and the fit whose chains agree best is saved.
+Each fit is logged to `2Results/state_models/HS_states_joint_<fit_tag>_fits.csv`.
 """),
 code(r"""
 idatas = {}
@@ -406,13 +409,30 @@ for key, model in models.items():
         print(f'loaded {nc_file}')
         continue
     start = {'nuts_sampler_kwargs': {'init_mean': init_mean(model, spec)}} if data_inits else {}
-    with model:
-        idata = pm.sample(draws=n_draws, tune=n_tune, chains=n_chains, nuts_sampler=sampler,
-                          target_accept=target_accept, random_seed=random_seed, progressbar=False, **start)
-    lp = idata.sample_stats['logp'].mean('draw')
-    flagged = np.where((lp < lp.max() - logp_threshold).values)[0].tolist()
-    print(f'Mean log posterior per chain: {np.round(lp.values, 1)}; flagged (not dropped): {flagged}')
-    print(f"Divergences: {int(idata.sample_stats['diverging'].sum())}")
+    idata, best_range = None, np.inf
+    for attempt in range(max_attempts):
+        seed = random_seed + 1000 * attempt
+        t0 = time.time()
+        with model:
+            fit = pm.sample(draws=n_draws, tune=n_tune, chains=n_chains, nuts_sampler=sampler,
+                            target_accept=target_accept, random_seed=seed, progressbar=False, **start)
+        lp = fit.sample_stats['logp'].mean('draw')
+        lp_range = float(lp.max() - lp.min())
+        n_div = int(fit.sample_stats['diverging'].sum())
+        print(f'seed {seed}: mean log posterior per chain {np.round(lp.values, 1)} (range {lp_range:.1f}); '
+              f'{n_div} divergences', flush=True)
+        log_row = pd.DataFrame([{'model': key, 'seed': seed, 'chains': n_chains, 'tune': n_tune, 'draws': n_draws,
+                                 'divergences': n_div, 'chain_logp': ' '.join(f'{v:.1f}' for v in lp.values),
+                                 'chain_logp_range': lp_range, 'fit_minutes': (time.time() - t0) / 60,
+                                 'time': pd.Timestamp.now().isoformat(timespec='seconds')}])
+        log_file = f'2Results/state_models/HS_states_joint_{fit_tag}_fits.csv'
+        log_row.to_csv(log_file, mode='a', header=not os.path.exists(log_file), index=False)
+        if lp_range < best_range:
+            idata, best_range = fit, lp_range
+        if lp_range <= logp_threshold:
+            break
+    else:
+        print(f'no fit within {logp_threshold} after {max_attempts} attempts; keeping the best (range {best_range:.1f})')
     idata.add_groups(log_likelihood=xr.Dataset({'loglik_dance': idata.posterior['loglik_dance']}))
     az.to_netcdf(idata, nc_file)
     idatas[key] = idata
