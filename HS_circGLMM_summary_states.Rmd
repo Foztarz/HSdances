@@ -276,6 +276,9 @@ if(!nzchar(Sys.getenv('RETICULATE_CONDA')))
     Sys.setenv(RETICULATE_CONDA = normalizePath(conda_found[1], winslash = '/'))
   }
 }
+#ignore packages in the user site-packages (%APPDATA%\Python\Python312), shared by all
+#Python 3.12 installs, so that only the environment's own packages are used
+Sys.setenv(PYTHONNOUSERSITE = '1')
 #use the environment, with instructions if it cannot be found
 tryCatch(use_condaenv(hs_env, required = TRUE),
          error = function(e)
